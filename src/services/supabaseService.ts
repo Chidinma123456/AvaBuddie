@@ -414,30 +414,41 @@ export const patientService = {
     try {
       console.log('Getting my doctors for patient:', profile.id);
       
-      // Use a more comprehensive query that joins all the necessary tables
-      const { data, error } = await supabase
+      // First get the doctor profile IDs from relationships
+      const { data: relationships, error: relationshipError } = await supabase
         .from('patient_doctor_relationships')
-        .select(`
-          doctor_id,
-          doctors!inner(
-            *,
-            profile:profiles!doctors_profile_id_fkey(*)
-          )
-        `)
+        .select('doctor_id')
         .eq('patient_id', profile.id);
 
-      if (error) {
-        console.error('Error fetching my doctors:', error);
-        throw error;
+      if (relationshipError) {
+        console.error('Error fetching relationships:', relationshipError);
+        throw relationshipError;
       }
 
-      console.log('Raw relationship data with doctors:', data);
+      if (!relationships || relationships.length === 0) {
+        console.log('No doctor relationships found');
+        return [];
+      }
 
-      // Extract the doctors from the relationship data
-      const doctors = data?.map(rel => rel.doctors).filter(Boolean) || [];
-      
+      const doctorProfileIds = relationships.map(rel => rel.doctor_id);
+      console.log('Doctor profile IDs:', doctorProfileIds);
+
+      // Now get the doctor records using the profile IDs
+      const { data: doctors, error: doctorsError } = await supabase
+        .from('doctors')
+        .select(`
+          *,
+          profile:profiles!doctors_profile_id_fkey(*)
+        `)
+        .in('profile_id', doctorProfileIds);
+
+      if (doctorsError) {
+        console.error('Error fetching doctors:', doctorsError);
+        throw doctorsError;
+      }
+
       console.log('Final doctors data:', doctors);
-      return doctors;
+      return doctors || [];
     } catch (error) {
       console.error('Error fetching my doctors:', error);
       return [];
@@ -626,7 +637,7 @@ export const subscribeToPatientRequests = (doctorId: string, callback: (request:
         table: 'patient_doctor_requests',
         filter: `doctor_id=eq.${doctorId}`
       },
-      (payload) => callback(payload.new as PatientDoctorRequest)
+      (payload) => callback(payload.new as Notification)
     )
     .subscribe();
 };
