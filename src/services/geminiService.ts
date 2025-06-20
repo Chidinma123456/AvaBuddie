@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-interface GeminiMessage {
+export interface GeminiMessage {
   role: 'user' | 'model';
   parts: string;
 }

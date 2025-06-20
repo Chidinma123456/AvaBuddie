@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, User, Plus, Clock, CheckCircle, XCircle, MessageCircle, Search, Filter, Star, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, User, CheckCircle, XCircle, MessageCircle, Search, Filter, Star, MapPin } from 'lucide-react';
 import { patientService, profileService, type Doctor, type PatientDoctorRequest } from '../../services/supabaseService';
 import DoctorSearchModal from './DoctorSearchModal';
 
@@ -128,7 +128,7 @@ export default function MyDoctorsModal({ isOpen, onClose }: MyDoctorsModalProps)
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />;
+      case 'pending': return <MessageCircle className="w-4 h-4" />;
       case 'approved': return <CheckCircle className="w-4 h-4" />;
       case 'rejected': return <XCircle className="w-4 h-4" />;
       default: return <MessageCircle className="w-4 h-4" />;
