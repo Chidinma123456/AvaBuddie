@@ -61,6 +61,7 @@ export default function ChatInterface({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [isSavingMessage, setIsSavingMessage] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -209,18 +210,58 @@ export default function ChatInterface({
 
       if (imageUrl) {
         // Convert image to base64 for Gemini Vision API
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64String = reader.result as string;
-            resolve(base64String.split(',')[1]); // Remove data:image/jpeg;base64, prefix
-          };
-          reader.readAsDataURL(blob);
-        });
+        try {
+          setIsProcessingImage(true);
+          console.log('Processing image for AI analysis...');
+          
+          const response = await fetch(imageUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+          }
+          
+          const blob = await response.blob();
+          
+          // Validate image type
+          if (!blob.type.startsWith('image/')) {
+            throw new Error('Invalid file type. Please upload an image file.');
+          }
+          
+          // Check image size (limit to 10MB)
+          if (blob.size > 10 * 1024 * 1024) {
+            throw new Error('Image too large. Please upload an image smaller than 10MB.');
+          }
+          
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              if (result) {
+                // Remove data:image/jpeg;base64, prefix
+                const base64String = result.split(',')[1];
+                if (base64String) {
+                  resolve(base64String);
+                } else {
+                  reject(new Error('Failed to extract base64 data from image'));
+                }
+              } else {
+                reject(new Error('Failed to read image file'));
+              }
+            };
+            reader.onerror = () => reject(new Error('Failed to read image file'));
+            reader.readAsDataURL(blob);
+          });
 
-        aiResponse = await geminiService.analyzeImage(base64, content);
+          console.log('Image converted to base64, analyzing with AI...');
+          aiResponse = await geminiService.analyzeImage(base64, content || 'Please analyze this medical image and provide insights.');
+          
+        } catch (imageError) {
+          console.error('Error processing image:', imageError);
+          aiResponse = `I can see that you've uploaded an image, but I'm having trouble analyzing it right now. ${
+            imageError instanceof Error ? imageError.message : 'Please try uploading the image again or describe your symptoms in text.'
+          } For any concerning visual symptoms, please consult with a healthcare professional who can properly examine the area.`;
+        } finally {
+          setIsProcessingImage(false);
+        }
       } else {
         aiResponse = await geminiService.generateResponse(
           content, 
@@ -417,15 +458,39 @@ export default function ChatInterface({
     }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file (JPEG, PNG, GIF, etc.)');
+        return;
+      }
+
+      // Validate file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image file is too large. Please select an image smaller than 10MB.');
+        return;
+      }
+
+      console.log('Processing uploaded image:', file.name, file.type, file.size);
+
+      // Create object URL for the image
       const imageUrl = URL.createObjectURL(file);
-      handleSendMessage('Please analyze this image and provide medical insights.', undefined, imageUrl);
-    }
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      
+      // Send message with image
+      await handleSendMessage('Please analyze this image and provide medical insights.', undefined, imageUrl);
+      
+    } catch (error) {
+      console.error('Error handling image upload:', error);
+      alert('Failed to process the image. Please try again.');
+    } finally {
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -530,11 +595,17 @@ export default function ChatInterface({
                   : 'bg-gray-100 text-gray-900'
               }`}>
                 {message.imageUrl && (
-                  <img 
-                    src={message.imageUrl} 
-                    alt="Uploaded" 
-                    className="w-full h-32 object-cover rounded-lg mb-2"
-                  />
+                  <div className="mb-2">
+                    <img 
+                      src={message.imageUrl} 
+                      alt="Uploaded medical image" 
+                      className="w-full h-32 object-cover rounded-lg border"
+                      onError={(e) => {
+                        console.error('Error loading image:', e);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
                 )}
                 
                 {message.audioUrl && (
@@ -588,7 +659,7 @@ export default function ChatInterface({
           </div>
         ))}
         
-        {(isLoading || isTranscribing) && (
+        {(isLoading || isTranscribing || isProcessingImage) && (
           <div className="flex justify-start">
             <div className="flex items-start space-x-3 max-w-xs lg:max-w-md">
               <div className="w-8 h-8 rounded-full bg-white border-2 border-blue-200 overflow-hidden flex items-center justify-center">
@@ -602,7 +673,9 @@ export default function ChatInterface({
                 <div className="flex items-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
                   <span className="text-sm text-gray-600">
-                    {isTranscribing ? 'Converting speech to text...' : 'Dr. Ava is analyzing...'}
+                    {isTranscribing ? 'Converting speech to text...' : 
+                     isProcessingImage ? 'Analyzing image...' : 
+                     'Dr. Ava is analyzing...'}
                   </span>
                 </div>
               </div>
@@ -645,7 +718,7 @@ export default function ChatInterface({
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors"
                 rows={1}
                 style={{ minHeight: '48px', maxHeight: '120px' }}
-                disabled={isRecording || isLoading || isTranscribing}
+                disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
               />
             </div>
           </div>
@@ -662,7 +735,7 @@ export default function ChatInterface({
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center transition-colors"
-              disabled={isRecording || isLoading || isTranscribing}
+              disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
               title="Upload medical image"
             >
               <Camera className="w-5 h-5" />
@@ -675,7 +748,7 @@ export default function ChatInterface({
                   ? 'bg-red-600 hover:bg-red-700 text-white' 
                   : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
               }`}
-              disabled={isLoading || isTranscribing}
+              disabled={isLoading || isTranscribing || isProcessingImage}
               title={isRecording ? 'Stop recording' : 'Record voice message'}
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -683,7 +756,7 @@ export default function ChatInterface({
             
             <button
               onClick={handleSendClick}
-              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing}
+              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing || isProcessingImage}
               className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors"
               title="Send message"
             >
