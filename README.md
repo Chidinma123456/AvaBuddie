@@ -191,11 +191,6 @@ npm run deploy:docker
    ```bash
    npm run build
    ```
-
-3. **Deploy to your preferred platform**
-   
-   See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
-
 ## 📱 Screenshots
 
 ### Patient Dashboard
