@@ -1,13 +1,16 @@
 {
   "name": "virtualdoc",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:netlify": "./scripts/deploy.sh netlify",
+    "deploy:vercel": "./scripts/deploy.sh vercel",
+    "deploy:docker": "./scripts/deploy.sh docker"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
