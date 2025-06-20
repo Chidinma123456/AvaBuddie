@@ -139,6 +139,27 @@ export interface Notification {
   created_at: string;
 }
 
+// Chat History Types
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'ai';
+  content: string;
+  timestamp: string;
+  audioUrl?: string;
+  imageUrl?: string;
+  isVoiceMessage?: boolean;
+}
+
+export interface ChatSession {
+  id: string;
+  patient_id: string;
+  session_name: string;
+  messages: ChatMessage[];
+  last_message_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Profile Services
 export const profileService = {
   async getCurrentProfile(): Promise<Profile | null> {
@@ -523,6 +544,143 @@ export const patientService = {
       .catch((err: any) => console.error('Failed to send notification:', err));
 
     return data;
+  }
+};
+
+// Chat History Services
+export const chatHistoryService = {
+  async getCurrentSession(): Promise<ChatSession | null> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('patient_id', profile.id)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching current session:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getCurrentSession:', error);
+      return null;
+    }
+  },
+
+  async createNewSession(sessionName?: string): Promise<ChatSession> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') {
+      throw new Error('Only patients can create chat sessions');
+    }
+
+    const defaultName = `Chat ${new Date().toLocaleDateString()}`;
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .insert({
+        patient_id: profile.id,
+        session_name: sessionName || defaultName,
+        messages: [],
+        last_message_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async saveMessage(sessionId: string, message: ChatMessage): Promise<void> {
+    try {
+      // Get current session
+      const { data: session, error: fetchError } = await supabase
+        .from('chat_sessions')
+        .select('messages')
+        .eq('id', sessionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Add new message to existing messages
+      const updatedMessages = [...(session.messages || []), message];
+
+      // Update session with new message
+      const { error: updateError } = await supabase
+        .from('chat_sessions')
+        .update({
+          messages: updatedMessages,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (updateError) throw updateError;
+    } catch (error) {
+      console.error('Error saving message:', error);
+      throw error;
+    }
+  },
+
+  async getAllSessions(): Promise<ChatSession[]> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('patient_id', profile.id)
+        .order('last_message_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching all sessions:', error);
+      return [];
+    }
+  },
+
+  async getSession(sessionId: string): Promise<ChatSession | null> {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching session:', error);
+      return null;
+    }
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_sessions')
+      .delete()
+      .eq('id', sessionId);
+
+    if (error) throw error;
+  },
+
+  async updateSessionName(sessionId: string, newName: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_sessions')
+      .update({ 
+        session_name: newName,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (error) throw error;
   }
 };
 
