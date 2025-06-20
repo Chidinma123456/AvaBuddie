@@ -30,3 +30,8 @@
 # Site settings for BuddyDoc
 [context.production]
   environment = { VITE_APP_NAME = "BuddyDoc" }
+
+# Environment variables for production (these need to be set in Netlify dashboard)
+[context.production.environment]
+  VITE_APP_NAME = "BuddyDoc"
+  VITE_APP_VERSION = "1.0.0"
