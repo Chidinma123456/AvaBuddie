@@ -400,7 +400,18 @@ export const doctorService = {
       .eq('doctor_id', profile.id);
 
     if (error) throw error;
-    return (data?.map(item => item.patient).filter(Boolean) as Profile[]) || [];
+    
+    // Fix the type conversion issue by properly extracting and typing the patient data
+    const patients: Profile[] = [];
+    if (data) {
+      for (const item of data) {
+        if (item.patient && typeof item.patient === 'object' && !Array.isArray(item.patient)) {
+          patients.push(item.patient as Profile);
+        }
+      }
+    }
+    
+    return patients;
   },
 
   async getPendingRequests(): Promise<PatientDoctorRequest[]> {
