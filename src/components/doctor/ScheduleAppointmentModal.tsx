@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, User, Video, Phone, MapPin, Save, Search } from 'lucide-react';
+import { X, Clock, User, Video, Phone, MapPin, Save, Search } from 'lucide-react';
 
 interface Patient {
   id: string;
-  name: string;
-  age: number;
-  condition: string;
+  full_name: string;
+  age?: number;
+  condition?: string;
 }
 
 interface ScheduleAppointmentModalProps {
@@ -34,7 +34,7 @@ export default function ScheduleAppointmentModal({ isOpen, onClose, onSave, pati
   if (!isOpen) return null;
 
   const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(patientSearch.toLowerCase())
+    patient.full_name.toLowerCase().includes(patientSearch.toLowerCase())
   );
 
   const handleInputChange = (field: string, value: string) => {
@@ -45,9 +45,9 @@ export default function ScheduleAppointmentModal({ isOpen, onClose, onSave, pati
     setFormData(prev => ({
       ...prev,
       patientId: patient.id,
-      patientName: patient.name
+      patientName: patient.full_name
     }));
-    setPatientSearch(patient.name);
+    setPatientSearch(patient.full_name);
     setShowPatientDropdown(false);
   };
 
@@ -95,22 +95,13 @@ export default function ScheduleAppointmentModal({ isOpen, onClose, onSave, pati
     return today.toISOString().split('T')[0];
   };
 
-  const getAppointmentIcon = (type: string) => {
-    switch (type) {
-      case 'video': return <Video className="w-4 h-4" />;
-      case 'phone': return <Phone className="w-4 h-4" />;
-      case 'in-person': return <MapPin className="w-4 h-4" />;
-      default: return <Video className="w-4 h-4" />;
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-600" />
+              <Clock className="w-6 h-6 text-blue-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">Schedule Appointment</h2>
           </div>
@@ -154,7 +145,7 @@ export default function ScheduleAppointmentModal({ isOpen, onClose, onSave, pati
                     onClick={() => handlePatientSelect(patient)}
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                   >
-                    <div className="font-medium text-gray-900">{patient.name}</div>
+                    <div className="font-medium text-gray-900">{patient.full_name}</div>
                     <div className="text-sm text-gray-600">{patient.age}y • {patient.condition}</div>
                   </button>
                 ))}

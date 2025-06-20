@@ -332,7 +332,7 @@ export const doctorService = {
       .eq('doctor_id', profile.id);
 
     if (error) throw error;
-    return data?.map(item => item.patient).filter(Boolean) || [];
+    return data?.map(item => item.patient).filter(Boolean) as Profile[];
   },
 
   async getPendingRequests(): Promise<PatientDoctorRequest[]> {
@@ -402,7 +402,7 @@ export const patientService = {
         data: { request_id: data.id, patient_id: profile.id }
       })
       .then(() => console.log('Notification sent'))
-      .catch(err => console.error('Failed to send notification:', err));
+      .catch((err: any) => console.error('Failed to send notification:', err));
 
     return data;
   },
@@ -513,7 +513,7 @@ export const patientService = {
         data: { report_id: data.id, patient_id: profile.id }
       })
       .then(() => console.log('Notification sent'))
-      .catch(err => console.error('Failed to send notification:', err));
+      .catch((err: any) => console.error('Failed to send notification:', err));
 
     return data;
   }
@@ -637,7 +637,7 @@ export const subscribeToPatientRequests = (doctorId: string, callback: (request:
         table: 'patient_doctor_requests',
         filter: `doctor_id=eq.${doctorId}`
       },
-      (payload) => callback(payload.new as Notification)
+      (payload) => callback(payload.new as PatientDoctorRequest)
     )
     .subscribe();
 };

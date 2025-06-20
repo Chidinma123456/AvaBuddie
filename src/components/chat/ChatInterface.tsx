@@ -27,6 +27,11 @@ interface Message {
   isVoiceMessage?: boolean;
 }
 
+interface GeminiMessage {
+  role: 'user' | 'assistant';
+  parts: string;
+}
+
 interface ChatInterfaceProps {
   onEmergencyEscalate?: () => void;
   onRequestDoctorReview?: () => void;
@@ -48,7 +53,7 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [conversationHistory, setConversationHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [conversationHistory, setConversationHistory] = useState<GeminiMessage[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -103,9 +108,15 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
 
         aiResponse = await geminiService.analyzeImage(base64, content);
       } else {
+        // Convert conversation history to the correct format
+        const geminiHistory: GeminiMessage[] = conversationHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          parts: msg.parts
+        }));
+
         aiResponse = await geminiService.generateResponse(
           content, 
-          conversationHistory, 
+          geminiHistory, 
           !!imageUrl, 
           isVoiceMessage
         );
@@ -123,8 +134,8 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
       // Update conversation history for context
       setConversationHistory(prev => [
         ...prev,
-        { role: 'user', content: content },
-        { role: 'assistant', content: aiResponse }
+        { role: 'user', parts: content },
+        { role: 'assistant', parts: aiResponse }
       ]);
 
       // Generate AI voice response using ElevenLabs (only if API is configured)
