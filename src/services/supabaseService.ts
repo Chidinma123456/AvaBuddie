@@ -5,7 +5,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+  throw new Error('Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+}
+
+if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
+  throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -25,7 +29,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     fetch: (url, options = {}) => {
       return fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(8000) // 8 second timeout
+        signal: AbortSignal.timeout(10000) // Increased timeout to 10 seconds
+      }).catch(error => {
+        console.error('Supabase fetch error:', error);
+        throw new Error(`Failed to connect to Supabase: ${error.message}`);
       });
     }
   }
