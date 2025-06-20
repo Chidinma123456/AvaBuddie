@@ -16,18 +16,12 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [conversationUrl, setConversationUrl] = useState<string | null>(null);
   const [hasUserMedia, setHasUserMedia] = useState(false);
-  const [configStatus, setConfigStatus] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    // Check Tavus configuration status
-    const status = tavusService.getConfigurationStatus();
-    setConfigStatus(status);
-    console.log('Tavus configuration status:', status);
-
     return () => {
       // Cleanup on unmount
       if (streamRef.current) {
@@ -238,17 +232,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   Connect with Dr. Ava, your AI-powered virtual doctor, for personalized medical consultation. 
                   Dr. Ava is trained in medical knowledge and will provide professional guidance for your health concerns.
                 </p>
-                
-                {/* Configuration Status */}
-                <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4 mb-6">
-                  <div className="flex items-center justify-center space-x-2 mb-2">
-                    <div className={`w-3 h-3 rounded-full ${tavusService.isConfigured() ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
-                    <span className="text-white font-medium">
-                      {tavusService.isConfigured() ? 'Tavus Connected' : 'Demo Mode'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/70">{configStatus}</p>
-                </div>
                 
                 <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-6 mb-8">
                   <h4 className="text-white font-semibold mb-3">What Dr. Ava can help with:</h4>
@@ -462,11 +445,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               {hasUserMedia && (
                 <p className="text-green-400/70 text-xs mt-1">
                   ✓ Camera and microphone connected
-                </p>
-              )}
-              {!tavusService.isConfigured() && (
-                <p className="text-yellow-400/70 text-xs mt-1">
-                  ⚠️ Running in demo mode - Configure Tavus API for full functionality
                 </p>
               )}
             </div>
