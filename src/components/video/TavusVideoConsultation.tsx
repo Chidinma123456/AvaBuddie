@@ -387,7 +387,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 </div>
                 <div className="mt-6 bg-blue-600/20 border border-blue-500/30 rounded-lg p-4 max-w-md mx-auto">
                   <p className="text-sm text-white/80">
-                    Dr. Ava (persona: p9863a04af01) is being configured with medical expertise to provide you with the best possible consultation experience.
+                    Dr. Ava is being configured with medical expertise to provide you with the best possible consultation experience.
                   </p>
                 </div>
               </div>
