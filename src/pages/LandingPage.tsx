@@ -28,13 +28,30 @@ export default function LandingPage() {
                 VirtualDoc
               </span>
             </div>
-            <Link 
-              to="/login" 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center space-x-2"
-            >
-              <span>Get Started</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+            <div className="flex items-center space-x-4">
+              <Link 
+                to="/login" 
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              >
+                <span>Get Started</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              
+              {/* Bolt.new Logo - Positioned below Get Started button */}
+              <a 
+                href="https://bolt.new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block transition-transform hover:scale-110 duration-200"
+                title="Powered by Bolt.new"
+              >
+                <img 
+                  src="/black_circle_360x360 copy.png" 
+                  alt="Powered by Bolt.new" 
+                  className="w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-shadow duration-200"
+                />
+              </a>
+            </div>
           </div>
         </div>
       </header>
@@ -217,8 +234,21 @@ export default function LandingPage() {
               </div>
               <span className="text-2xl font-bold">VirtualDoc</span>
             </div>
-            <div className="text-gray-400">
-              © 2025 VirtualDoc. Transforming healthcare through AI.
+            <div className="text-gray-400 flex items-center space-x-4">
+              <span>© 2025 VirtualDoc. Transforming healthcare through AI.</span>
+              <a 
+                href="https://bolt.new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <img 
+                  src="/black_circle_360x360 copy.png" 
+                  alt="Built with Bolt.new" 
+                  className="w-6 h-6 rounded-full"
+                />
+                <span className="text-sm">Built with Bolt.new</span>
+              </a>
             </div>
           </div>
         </div>
