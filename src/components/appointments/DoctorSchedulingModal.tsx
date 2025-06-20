@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, X, User, CheckCircle, Star, MapPin, Video, Phone } from 'lucide-react';
+import { Clock, X, MapPin, Video, Phone, CheckCircle, Star } from 'lucide-react';
 
 interface Doctor {
   id: string;
@@ -184,7 +184,7 @@ export default function DoctorSchedulingModal({ isOpen, onClose }: DoctorSchedul
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-600" />
+              <Clock className="w-6 h-6 text-blue-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">
               {step === 'select-doctor' ? 'Select Doctor' : 'Schedule Appointment'}
@@ -300,14 +300,13 @@ export default function DoctorSchedulingModal({ isOpen, onClose }: DoctorSchedul
                   Preferred Date
                 </label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="date"
                     id="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     min={getMinDate()}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>

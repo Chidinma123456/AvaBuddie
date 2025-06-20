@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, User, Calendar, Phone, Mail, MapPin, AlertTriangle, Save } from 'lucide-react';
+import { X, User, Phone, Mail, MapPin, AlertTriangle, Save } from 'lucide-react';
 
 interface AddPatientModalProps {
   isOpen: boolean;
@@ -40,7 +40,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: AddPatientM
     setTimeout(() => {
       const newPatient = {
         id: `P${Date.now()}`,
-        name: `${formData.firstName} ${formData.lastName}`,
+        full_name: `${formData.firstName} ${formData.lastName}`,
         age: new Date().getFullYear() - new Date(formData.dateOfBirth).getFullYear(),
         gender: formData.gender,
         condition: 'New Patient',

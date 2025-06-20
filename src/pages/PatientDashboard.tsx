@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ChatInterface from '../components/chat/ChatInterface';

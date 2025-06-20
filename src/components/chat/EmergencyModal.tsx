@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Phone, X, MapPin, Clock } from 'lucide-react';
 
 interface EmergencyModalProps {

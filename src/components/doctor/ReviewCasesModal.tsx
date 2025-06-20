@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, FileText, Clock, AlertTriangle, User, Calendar, CheckCircle, Eye, MessageCircle } from 'lucide-react';
+import { useState } from 'react';
+import { X, FileText, Clock, AlertTriangle, User, CheckCircle, Eye, MessageCircle } from 'lucide-react';
 
 interface PendingCase {
   id: string;
