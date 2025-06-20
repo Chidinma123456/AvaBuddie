@@ -12,6 +12,13 @@ if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || supabaseAnonKey === 'YOUR_SUP
   throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
 }
 
+// Validate URL format
+try {
+  new URL(supabaseUrl);
+} catch {
+  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -27,16 +34,49 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'x-client-info': 'virtualdoc-web'
     },
     fetch: (url, options = {}) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
       return fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(10000) // Increased timeout to 10 seconds
+        signal: controller.signal
+      }).then(response => {
+        clearTimeout(timeoutId);
+        return response;
       }).catch(error => {
+        clearTimeout(timeoutId);
         console.error('Supabase fetch error:', error);
+        
+        if (error.name === 'AbortError') {
+          throw new Error('Connection timeout: Unable to reach Supabase server');
+        }
+        
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Please check your internet connection and Supabase URL');
+        }
+        
         throw new Error(`Failed to connect to Supabase: ${error.message}`);
       });
     }
   }
 });
+
+// Test connection on initialization
+const testConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Supabase connection test failed:', error.message);
+    } else {
+      console.log('Supabase connection established successfully');
+    }
+  } catch (error) {
+    console.warn('Supabase connection test failed:', error);
+  }
+};
+
+// Run connection test after a short delay to allow for initialization
+setTimeout(testConnection, 1000);
 
 // Types
 export interface Profile {
