@@ -438,7 +438,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                         </div>
                       </div>
                       <h4 className="text-xl font-semibold mb-2">Dr. Ava</h4>
-                      <p className="text-sm opacity-80 mb-4">AI Medical Assistant (ID: p9863a04af01)</p>
+                      <p className="text-sm opacity-80 mb-4">AI Medical Assistant </p>
                       <div className="bg-white/20 rounded-lg p-3 max-w-xs mx-auto mb-4">
                         <p className="text-xs">
                           "Hello! I'm ready to help with your health concerns. Please tell me what's bothering you today."
