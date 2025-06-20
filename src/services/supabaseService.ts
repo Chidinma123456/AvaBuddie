@@ -64,7 +64,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Test connection on initialization
 const testConnection = async () => {
   try {
-    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    const { error } = await supabase.from('profiles').select('count').limit(1);
     if (error && error.code !== 'PGRST116') {
       console.warn('Supabase connection test failed:', error.message);
     } else {
@@ -400,7 +400,7 @@ export const doctorService = {
       .eq('doctor_id', profile.id);
 
     if (error) throw error;
-    return data?.map(item => item.patient).filter(Boolean) as Profile[];
+    return (data?.map(item => item.patient).filter(Boolean) as Profile[]) || [];
   },
 
   async getPendingRequests(): Promise<PatientDoctorRequest[]> {

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { doctorService, patientService, profileService, type Profile, type PatientDoctorRequest } from '../services/supabaseService';
+import { doctorService, type Profile, type PatientDoctorRequest } from '../services/supabaseService';
 import AddPatientModal from '../components/doctor/AddPatientModal';
 import ScheduleAppointmentModal from '../components/doctor/ScheduleAppointmentModal';
 import ReviewCasesModal from '../components/doctor/ReviewCasesModal';
@@ -19,11 +19,6 @@ import {
   User,
   Bell,
   Phone,
-  AlertTriangle,
-  TrendingUp,
-  Activity,
-  Star,
-  MapPin,
   Plus,
   Search,
   Filter
