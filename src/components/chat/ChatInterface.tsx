@@ -12,7 +12,8 @@ import {
   Loader2,
   Play,
   Pause,
-  Square
+  Square,
+  ImageOff
 } from 'lucide-react';
 import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';
@@ -63,6 +64,7 @@ export default function ChatInterface({
   const [isSavingMessage, setIsSavingMessage] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -519,6 +521,19 @@ export default function ChatInterface({
     audio.play();
   };
 
+  const handleImageError = (imageUrl: string) => {
+    console.log('Image failed to load:', imageUrl);
+    setFailedImages(prev => new Set(prev).add(imageUrl));
+  };
+
+  const isImageFailed = (imageUrl: string) => {
+    return failedImages.has(imageUrl);
+  };
+
+  const isBlobUrl = (url: string) => {
+    return url.startsWith('blob:');
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -606,15 +621,26 @@ export default function ChatInterface({
               }`}>
                 {message.imageUrl && (
                   <div className="mb-2">
-                    <img 
-                      src={message.imageUrl} 
-                      alt="Uploaded medical image" 
-                      className="w-full h-32 object-cover rounded-lg border"
-                      onError={(e) => {
-                        console.error('Error loading image:', message.imageUrl);
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    {isImageFailed(message.imageUrl) || (isBlobUrl(message.imageUrl) && !message.imageUrl.includes(window.location.origin)) ? (
+                      <div className="w-full h-32 bg-gray-200 rounded-lg border flex items-center justify-center">
+                        <div className="text-center text-gray-500">
+                          <ImageOff className="w-8 h-8 mx-auto mb-2" />
+                          <p className="text-xs">
+                            {isBlobUrl(message.imageUrl) 
+                              ? 'Image no longer available (temporary link expired)'
+                              : 'Image failed to load'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img 
+                        src={message.imageUrl} 
+                        alt="Uploaded medical image" 
+                        className="w-full h-32 object-cover rounded-lg border"
+                        onError={() => handleImageError(message.imageUrl!)}
+                      />
+                    )}
                   </div>
                 )}
                 
