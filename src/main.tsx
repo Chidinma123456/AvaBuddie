@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -74,9 +74,6 @@ class ErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-
-// Add React import for ErrorBoundary
-import React from 'react';
 
 // Add console logs to help debug
 console.log('BuddyDoc starting...');
