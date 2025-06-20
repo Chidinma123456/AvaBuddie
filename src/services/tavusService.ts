@@ -220,13 +220,9 @@ Remember: You are here to support and guide patients, but professional medical c
     } catch (error) {
       console.error('Error updating conversation context:', error);
       
-      // Log specific error types for better debugging
+      // Consolidated error logging for network issues
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.error('Network error: Unable to reach Tavus API. This could be due to:');
-        console.error('- Internet connectivity issues');
-        console.error('- CORS restrictions (Tavus API may not allow requests from localhost)');
-        console.error('- Firewall or network security blocking the request');
-        console.error('- Tavus API service temporarily unavailable');
+        console.error('Network error: Unable to reach Tavus API. This could be due to internet connectivity issues, CORS restrictions (Tavus API may not allow requests from localhost), firewall or network security blocking the request, or Tavus API service being temporarily unavailable.');
       } else if (error.name === 'AbortError') {
         console.error('Request timeout: Tavus API did not respond within 10 seconds');
       }
