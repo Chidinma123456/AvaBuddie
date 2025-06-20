@@ -218,13 +218,13 @@ Remember: You are here to support and guide patients, but professional medical c
       console.log('Conversation context updated successfully');
       return true;
     } catch (error) {
-      console.error('Error updating conversation context:', error);
-      
-      // Consolidated error logging for network issues
+      // Consolidated error logging - single comprehensive message
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.error('Network error: Unable to reach Tavus API. This could be due to internet connectivity issues, CORS restrictions (Tavus API may not allow requests from localhost), firewall or network security blocking the request, or Tavus API service being temporarily unavailable.');
+        console.error('Tavus API Network Error: Unable to reach Tavus API. This could be due to internet connectivity issues, CORS restrictions (Tavus API may not allow requests from localhost), firewall or network security blocking the request, or Tavus API service being temporarily unavailable.');
       } else if (error.name === 'AbortError') {
-        console.error('Request timeout: Tavus API did not respond within 10 seconds');
+        console.error('Tavus API Timeout: Request did not complete within 10 seconds');
+      } else {
+        console.error('Tavus API Error:', error.message || error);
       }
       
       // Return false instead of throwing to make this non-blocking

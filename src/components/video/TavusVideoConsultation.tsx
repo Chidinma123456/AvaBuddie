@@ -97,7 +97,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
 
       // Try to add initial medical context to the conversation (non-blocking)
       if (conversation.conversation_id) {
-        // Make this call non-blocking - don't await it
+        // Make this call non-blocking - don't await it and remove redundant error handling
         tavusService.updateConversationContext(
           conversation.conversation_id,
           'Patient has initiated a video consultation for medical guidance and health assessment.'
@@ -107,8 +107,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
           } else {
             console.log('Conversation context update failed, using default configuration');
           }
-        }).catch((err) => {
-          console.log('Conversation context update failed:', err);
         });
       }
       
