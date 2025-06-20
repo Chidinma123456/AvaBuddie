@@ -368,10 +368,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   <p className="text-white/50 text-sm">
                     📹 Camera and microphone access required for video consultation
                   </p>
-                  {!tavusService.isConfigured() && (
-                    <p className="text-yellow-400/70 text-sm mt-2">
-                      ⚠️ Tavus API not configured - demo mode will be used
-                    </p>
                   )}
                 </div>
               </div>
