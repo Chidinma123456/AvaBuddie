@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, 
   User, 
@@ -7,14 +7,11 @@ import {
   Activity, 
   Droplets,
   Wind,
-  Calendar,
-  Clock,
   AlertTriangle,
   Save,
   Send,
   Plus,
   Trash2,
-  Edit3,
   FileText,
   Stethoscope
 } from 'lucide-react';
@@ -478,7 +475,6 @@ Format your response in a clear, professional manner suitable for healthcare wor
             </div>
 
             <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Clock className="w-4 h-4" />
               <span>Last updated: {new Date().toLocaleString()}</span>
             </div>
           </div>

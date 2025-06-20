@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff, Loader2, AlertCircle, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, Loader2, AlertCircle } from 'lucide-react';
 import { tavusService } from '../../services/tavusService';
 
 interface TavusVideoConsultationProps {
@@ -153,12 +153,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     }
   };
 
-  const sendContextMessage = async (message: string) => {
-    if (conversationId) {
-      await tavusService.sendMessage(conversationId, message);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-95 flex items-center justify-center">
       <div className="w-full h-full max-w-7xl mx-4 flex flex-col">
@@ -174,7 +168,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 />
               </div>
               <div>
-                <h3 className="text-white font-semibold">Dr. Ava - AI Medical Consultation</h3>
+                <h3 className="font-semibold text-white">Dr. Ava - AI Medical Consultation</h3>
                 <p className="text-white/70 text-sm">
                   {connectionStatus === 'connecting' && 'Connecting to Dr. Ava...'}
                   {connectionStatus === 'connected' && 'Connected - Ready for consultation'}

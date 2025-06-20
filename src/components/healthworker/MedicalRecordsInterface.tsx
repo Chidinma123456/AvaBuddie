@@ -1,18 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   FileText, 
   Search, 
-  Filter, 
   Calendar, 
   Download, 
   Eye, 
   Edit3, 
   Plus,
-  Clock,
   User,
   Stethoscope,
-  Activity,
-  AlertTriangle,
   Phone
 } from 'lucide-react';
 
@@ -105,7 +101,7 @@ const mockRecords: MedicalRecord[] = [
 ];
 
 export default function MedicalRecordsInterface() {
-  const [records, setRecords] = useState<MedicalRecord[]>(mockRecords);
+  const [records] = useState<MedicalRecord[]>(mockRecords);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');

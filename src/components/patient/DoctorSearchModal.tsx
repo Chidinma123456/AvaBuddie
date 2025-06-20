@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Search, User, MapPin, Star, Clock, Send, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Search, MapPin, Star, Send, CheckCircle } from 'lucide-react';
 import { profileService, patientService, type Doctor } from '../../services/supabaseService';
 
 interface DoctorSearchModalProps {

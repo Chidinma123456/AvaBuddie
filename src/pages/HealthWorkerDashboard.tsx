@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import PatientAnalysisInterface from '../components/healthworker/PatientAnalysisInterface';
 import MedicalRecordsInterface from '../components/healthworker/MedicalRecordsInterface';
 import AnalyticsInterface from '../components/healthworker/AnalyticsInterface';
-import { Activity, Users, AlertCircle, FileText, Heart, TrendingUp, Search, Filter, Plus, Phone } from 'lucide-react';
+import { Activity, Users, AlertCircle, FileText, TrendingUp, Search, Filter, Phone } from 'lucide-react';
 
 interface Patient {
   id: string;
@@ -166,19 +166,21 @@ function HealthWorkerHome() {
     }
   };
 
-  const getVitalStatus = (vital: string, value: number | string, type: string) => {
+  const getVitalStatus = (_type: string, value: number | string) => {
     // Simple vital sign assessment
-    if (type === 'heartRate' && typeof value === 'number') {
-      if (value < 60 || value > 100) return 'text-red-600';
-      return 'text-green-600';
-    }
-    if (type === 'temperature' && typeof value === 'number') {
-      if (value > 100.4) return 'text-red-600';
-      return 'text-green-600';
-    }
-    if (type === 'oxygenSaturation' && typeof value === 'number') {
-      if (value < 95) return 'text-red-600';
-      return 'text-green-600';
+    if (typeof value === 'number') {
+      if (_type === 'heartRate') {
+        if (value < 60 || value > 100) return 'text-red-600';
+        return 'text-green-600';
+      }
+      if (_type === 'temperature') {
+        if (value > 100.4) return 'text-red-600';
+        return 'text-green-600';
+      }
+      if (_type === 'oxygenSaturation') {
+        if (value < 95) return 'text-red-600';
+        return 'text-green-600';
+      }
     }
     return 'text-gray-900';
   };
@@ -355,13 +357,13 @@ function HealthWorkerHome() {
                 <div className="text-right">
                   <div className="text-sm text-gray-600 mb-1">Last vitals: {patient.lastVitals.timestamp}</div>
                   <div className="flex items-center space-x-4 text-sm">
-                    <span className={`font-medium ${getVitalStatus('heartRate', patient.lastVitals.heartRate, 'heartRate')}`}>
+                    <span className={`font-medium ${getVitalStatus('heartRate', patient.lastVitals.heartRate)}`}>
                       HR: {patient.lastVitals.heartRate}
                     </span>
-                    <span className={`font-medium ${getVitalStatus('temperature', patient.lastVitals.temperature, 'temperature')}`}>
+                    <span className={`font-medium ${getVitalStatus('temperature', patient.lastVitals.temperature)}`}>
                       Temp: {patient.lastVitals.temperature}°F
                     </span>
-                    <span className={`font-medium ${getVitalStatus('oxygenSaturation', patient.lastVitals.oxygenSaturation, 'oxygenSaturation')}`}>
+                    <span className={`font-medium ${getVitalStatus('oxygenSaturation', patient.lastVitals.oxygenSaturation)}`}>
                       O2: {patient.lastVitals.oxygenSaturation}%
                     </span>
                   </div>

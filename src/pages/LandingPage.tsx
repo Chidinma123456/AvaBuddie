@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Heart, 
@@ -9,8 +8,7 @@ import {
   MessageCircle,
   Stethoscope,
   Activity,
-  ChevronRight,
-  Star
+  ChevronRight
 } from 'lucide-react';
 
 export default function LandingPage() {
