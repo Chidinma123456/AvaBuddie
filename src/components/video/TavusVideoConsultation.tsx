@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, Loader2, AlertCircle } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { tavusService } from '../../services/tavusService';
 
 interface TavusVideoConsultationProps {
@@ -18,6 +18,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const [hasUserMedia, setHasUserMedia] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isUsingMockMode, setIsUsingMockMode] = useState(false);
+  const [showExternalLink, setShowExternalLink] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -161,6 +162,11 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
       if (conversation.conversation_url) {
         setConversationUrl(conversation.conversation_url);
         console.log('Conversation URL set:', conversation.conversation_url);
+        
+        // Check if URL is accessible (for CORS issues)
+        if (conversation.conversation_url.includes('tavus') || conversation.conversation_url.includes('daily.co')) {
+          setShowExternalLink(true);
+        }
       }
 
       // Try to add initial medical context to the conversation (non-blocking)
@@ -254,6 +260,12 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     }
   };
 
+  const openExternalConsultation = () => {
+    if (conversationUrl) {
+      window.open(conversationUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-95 flex items-center justify-center">
       <div className="w-full h-full max-w-7xl mx-4 flex flex-col">
@@ -312,7 +324,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 <h3 className="text-3xl font-bold text-white mb-4">Start AI Video Consultation</h3>
                 <p className="text-white/70 mb-6 text-lg leading-relaxed">
                   Connect with Dr. Ava, your AI-powered virtual doctor, for personalized medical consultation. 
-                  Dr. Ava is trained in medical knowledge and will provide professional guidance for your health concerns.
+                  Dr. Ava uses persona ID: p9863a04af01 for authentic medical interactions.
                 </p>
                 
                 <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-6 mb-8">
@@ -380,7 +392,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 </div>
                 <div className="mt-6 bg-blue-600/20 border border-blue-500/30 rounded-lg p-4 max-w-md mx-auto">
                   <p className="text-sm text-white/80">
-                    Dr. Ava is being configured with medical expertise to provide you with the best possible consultation experience.
+                    Dr. Ava (persona: p9863a04af01) is being configured with medical expertise to provide you with the best possible consultation experience.
                   </p>
                 </div>
               </div>
@@ -393,14 +405,31 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               <div className="bg-gray-800 rounded-xl overflow-hidden relative">
                 {conversationUrl && 
                  !conversationUrl.includes('mock-tavus-conversation') && 
-                 tavusService.isConfigured() ? (
-                  <iframe
-                    ref={iframeRef}
-                    src={conversationUrl}
-                    className="w-full h-full"
-                    allow="camera; microphone"
-                    title="Dr. Ava Video Consultation"
-                  />
+                 tavusService.isConfigured() && 
+                 !showExternalLink ? (
+                  <>
+                    <iframe
+                      ref={iframeRef}
+                      src={conversationUrl}
+                      className="w-full h-full"
+                      allow="camera; microphone"
+                      title="Dr. Ava Video Consultation"
+                      onError={() => {
+                        console.log('Iframe failed to load, showing external link option');
+                        setShowExternalLink(true);
+                      }}
+                    />
+                    {/* Fallback for iframe loading issues */}
+                    <div className="absolute inset-0 bg-gray-800 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={openExternalConsultation}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Open in New Window</span>
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-blue-600 to-teal-600 flex items-center justify-center h-full">
                     <div className="text-center text-white">
@@ -414,12 +443,24 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                         </div>
                       </div>
                       <h4 className="text-xl font-semibold mb-2">Dr. Ava</h4>
-                      <p className="text-sm opacity-80 mb-4">AI Medical Assistant</p>
-                      <div className="bg-white/20 rounded-lg p-3 max-w-xs mx-auto">
+                      <p className="text-sm opacity-80 mb-4">AI Medical Assistant (ID: p9863a04af01)</p>
+                      <div className="bg-white/20 rounded-lg p-3 max-w-xs mx-auto mb-4">
                         <p className="text-xs">
                           "Hello! I'm ready to help with your health concerns. Please tell me what's bothering you today."
                         </p>
                       </div>
+                      
+                      {/* Show external link option if iframe fails or CORS issues */}
+                      {conversationUrl && showExternalLink && tavusService.isConfigured() && (
+                        <button
+                          onClick={openExternalConsultation}
+                          className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Open Video Consultation</span>
+                        </button>
+                      )}
+                      
                       {!tavusService.isConfigured() && (
                         <div className="mt-4 text-xs opacity-60">
                           Demo Mode - Tavus API not configured
@@ -515,6 +556,17 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 )}
               </button>
 
+              {/* External Link Button */}
+              {conversationUrl && showExternalLink && tavusService.isConfigured() && (
+                <button
+                  onClick={openExternalConsultation}
+                  className="w-14 h-14 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-blue-500/25"
+                  title="Open consultation in new window"
+                >
+                  <ExternalLink className="w-6 h-6 text-white" />
+                </button>
+              )}
+
               <button
                 onClick={endConsultation}
                 className="w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-red-500/25"
@@ -539,6 +591,11 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               {mediaError && (
                 <p className="text-red-400/70 text-xs mt-1">
                   ⚠ {mediaError}
+                </p>
+              )}
+              {showExternalLink && conversationUrl && tavusService.isConfigured() && (
+                <p className="text-blue-400/70 text-xs mt-1">
+                  💡 If video doesn't load, click the external link button to open in a new window
                 </p>
               )}
               {isUsingMockMode && (
