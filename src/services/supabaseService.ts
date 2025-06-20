@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as SupabaseUser, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -371,7 +371,7 @@ export const profileService = {
       
       if (query.trim()) {
         const searchText = query.toLowerCase();
-        filteredData = data?.filter(doctor => {
+        filteredData = data?.filter((doctor: Doctor) => {
           const fullName = doctor.profile?.full_name?.toLowerCase() || '';
           const specialties = doctor.specialties?.join(' ').toLowerCase() || '';
           const clinicName = doctor.clinic_name?.toLowerCase() || '';
@@ -568,7 +568,7 @@ export const patientService = {
         return [];
       }
 
-      const doctorProfileIds = relationships.map(rel => rel.doctor_id);
+      const doctorProfileIds = relationships.map((rel: { doctor_id: string }) => rel.doctor_id);
       console.log('Doctor profile IDs:', doctorProfileIds);
 
       // Now get the doctor records using the profile IDs
@@ -896,7 +896,7 @@ export const subscribeToNotifications = (userId: string, callback: (notification
         table: 'notifications',
         filter: `user_id=eq.${userId}`
       },
-      (payload) => callback(payload.new as Notification)
+      (payload: RealtimePostgresChangesPayload<Notification>) => callback(payload.new as Notification)
     )
     .subscribe();
 };
@@ -912,7 +912,7 @@ export const subscribeToPatientRequests = (doctorId: string, callback: (request:
         table: 'patient_doctor_requests',
         filter: `doctor_id=eq.${doctorId}`
       },
-      (payload) => callback(payload.new as PatientDoctorRequest)
+      (payload: RealtimePostgresChangesPayload<PatientDoctorRequest>) => callback(payload.new as PatientDoctorRequest)
     )
     .subscribe();
 };
