@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session }, error } = await Promise.race([
           supabase.auth.getSession(),
           new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Session timeout')), 3000)
+            setTimeout(() => reject(new Error('Session timeout')), 10000)
           )
         ]);
 
@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await Promise.race([
         supabase.auth.signInWithPassword({ email, password }),
         new Promise<any>((_, reject) => 
-          setTimeout(() => reject(new Error('Login timeout')), 10000)
+          setTimeout(() => reject(new Error('Login timeout')), 20000)
         )
       ]);
       
@@ -189,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }),
         new Promise<any>((_, reject) => 
-          setTimeout(() => reject(new Error('Signup timeout')), 10000)
+          setTimeout(() => reject(new Error('Signup timeout')), 20000)
         )
       ]);
       

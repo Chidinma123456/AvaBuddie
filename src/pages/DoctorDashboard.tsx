@@ -104,7 +104,9 @@ function DoctorHome({
   const [showReviewCasesModal, setShowReviewCasesModal] = useState(false);
 
   const filteredPatients = patients.filter(patient => {
-    const matchesSearch = patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    if (!patient) return false;
+    
+    const matchesSearch = patient.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (patient.condition || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' || (patient.status || 'Stable') === statusFilter;
     return matchesSearch && matchesStatus;
@@ -160,6 +162,7 @@ function DoctorHome({
   };
 
   const getPatientInitials = (fullName: string) => {
+    if (!fullName) return 'N/A';
     return fullName.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 

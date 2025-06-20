@@ -327,7 +327,7 @@ export const doctorService = {
     const { data, error } = await supabase
       .from('patient_doctor_relationships')
       .select(`
-        patient:profiles(*)
+        patient:profiles!patient_doctor_relationships_patient_id_fkey(*)
       `)
       .eq('doctor_id', profile.id);
 
