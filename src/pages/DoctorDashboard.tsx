@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { doctorService, patientService, profileService, type Profile, type PatientDoctorRequest } from '../services/supabaseService';
 import AddPatientModal from '../components/doctor/AddPatientModal';
 import ScheduleAppointmentModal from '../components/doctor/ScheduleAppointmentModal';
 import ReviewCasesModal from '../components/doctor/ReviewCasesModal';
@@ -28,16 +29,12 @@ import {
   Filter
 } from 'lucide-react';
 
-interface Patient {
-  id: string;
-  name: string;
-  age: number;
-  condition: string;
-  status: 'Stable' | 'Critical' | 'Improving' | 'Monitoring';
-  lastVisit: string;
+interface Patient extends Profile {
+  lastVisit?: string;
   nextAppointment?: string;
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  avatar: string;
+  priority?: 'Low' | 'Medium' | 'High' | 'Critical';
+  condition?: string;
+  status?: 'Stable' | 'Critical' | 'Improving' | 'Monitoring';
 }
 
 interface Appointment {
@@ -49,52 +46,6 @@ interface Appointment {
   duration: string;
   notes?: string;
 }
-
-const mockPatients: Patient[] = [
-  {
-    id: 'P001',
-    name: 'John Smith',
-    age: 45,
-    condition: 'Hypertension',
-    status: 'Stable',
-    lastVisit: '2025-01-10',
-    nextAppointment: '2025-01-20',
-    priority: 'Medium',
-    avatar: 'JS'
-  },
-  {
-    id: 'P002',
-    name: 'Maria Garcia',
-    age: 62,
-    condition: 'Diabetes Type 2',
-    status: 'Monitoring',
-    lastVisit: '2025-01-12',
-    nextAppointment: '2025-01-18',
-    priority: 'High',
-    avatar: 'MG'
-  },
-  {
-    id: 'P003',
-    name: 'Robert Johnson',
-    age: 78,
-    condition: 'Heart Disease',
-    status: 'Critical',
-    lastVisit: '2025-01-14',
-    priority: 'Critical',
-    avatar: 'RJ'
-  },
-  {
-    id: 'P004',
-    name: 'Lisa Chen',
-    age: 34,
-    condition: 'Pregnancy Care',
-    status: 'Stable',
-    lastVisit: '2025-01-13',
-    nextAppointment: '2025-01-25',
-    priority: 'Low',
-    avatar: 'LC'
-  }
-];
 
 const mockAppointments: Appointment[] = [
   {
@@ -133,7 +84,9 @@ function DoctorHome({
   patients,
   setPatients,
   appointments,
-  setAppointments
+  setAppointments,
+  pendingRequests,
+  isLoading
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
@@ -143,15 +96,19 @@ function DoctorHome({
   setPatients: (patients: Patient[]) => void;
   appointments: Appointment[];
   setAppointments: (appointments: Appointment[]) => void;
+  pendingRequests: PatientDoctorRequest[];
+  isLoading: boolean;
 }) {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showReviewCasesModal, setShowReviewCasesModal] = useState(false);
 
   const filteredPatients = patients.filter(patient => {
-    const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         patient.condition.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || patient.status === statusFilter;
+    if (!patient) return false;
+    
+    const matchesSearch = patient.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (patient.condition || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || (patient.status || 'Stable') === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -187,6 +144,36 @@ function DoctorHome({
     // In a real app, this would initiate a video call
     alert('Starting video consultation...');
   };
+
+  const handleJoinAppointment = (appointmentId: string) => {
+    alert(`Joining appointment ${appointmentId}...`);
+  };
+
+  const getPatientAge = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return 'N/A';
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const getPatientInitials = (fullName: string) => {
+    if (!fullName) return 'N/A';
+    return fullName.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-green-600 border-t-transparent"></div>
+        <span className="ml-3 text-gray-600">Loading patients...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -225,7 +212,7 @@ function DoctorHome({
             <div className="w-10 h-10 lg:w-12 lg:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 lg:w-6 lg:h-6 text-orange-600" />
             </div>
-            <span className="text-xl lg:text-2xl font-bold text-gray-900">7</span>
+            <span className="text-xl lg:text-2xl font-bold text-gray-900">{pendingRequests.length}</span>
           </div>
           <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Pending Reviews</h3>
           <p className="text-gray-600 text-xs lg:text-sm">Cases awaiting review</p>
@@ -247,7 +234,7 @@ function DoctorHome({
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-4 lg:p-6 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <h3 className="text-lg lg:text-xl font-semibold text-gray-900">Patient Management</h3>
+            <h3 className="text-lg lg:text-xl font-semibold text-gray-900">My Patients</h3>
             
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative">
@@ -280,49 +267,69 @@ function DoctorHome({
         </div>
 
         <div className="divide-y divide-gray-200">
-          {filteredPatients.map((patient) => (
-            <div key={patient.id} className="p-4 lg:p-6 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center text-white font-semibold">
-                    {patient.avatar}
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${getPriorityColor(patient.priority)} rounded-full border-2 border-white`}></div>
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-                    <div>
-                      <div className="flex items-center space-x-3 mb-1">
-                        <h4 className="text-base lg:text-lg font-semibold text-gray-900">{patient.name}</h4>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(patient.status)}`}>
-                          {patient.status}
-                        </span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-gray-600">
-                        <span>{patient.age} years old</span>
-                        <span className="hidden sm:inline">•</span>
-                        <span>{patient.condition}</span>
-                        <span className="hidden sm:inline">•</span>
-                        <span>Last visit: {new Date(patient.lastVisit).toLocaleDateString()}</span>
-                      </div>
+          {filteredPatients.length > 0 ? (
+            filteredPatients.map((patient) => (
+              <div key={patient.id} className="p-4 lg:p-6 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-green-600 to-green-700 rounded-full flex items-center justify-center text-white font-semibold">
+                      {getPatientInitials(patient.full_name)}
                     </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <button className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                        View Details
-                      </button>
-                      {patient.nextAppointment && (
-                        <button className="border border-green-600 text-green-600 hover:bg-green-50 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${getPriorityColor(patient.priority || 'Low')} rounded-full border-2 border-white`}></div>
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                      <div>
+                        <div className="flex items-center space-x-3 mb-1">
+                          <h4 className="text-base lg:text-lg font-semibold text-gray-900">{patient.full_name}</h4>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(patient.status || 'Stable')}`}>
+                            {patient.status || 'Stable'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-gray-600">
+                          <span>{getPatientAge(patient.date_of_birth)} years old</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>{patient.gender || 'Not specified'}</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>{patient.condition || 'General care'}</span>
+                          {patient.lastVisit && (
+                            <>
+                              <span className="hidden sm:inline">•</span>
+                              <span>Last visit: {new Date(patient.lastVisit).toLocaleDateString()}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <button className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                          View Details
+                        </button>
+                        <button 
+                          onClick={() => setShowScheduleModal(true)}
+                          className="border border-green-600 text-green-600 hover:bg-green-50 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
                           Schedule
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+            ))
+          ) : (
+            <div className="p-12 text-center">
+              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No patients found</h3>
+              <p className="text-gray-600 mb-6">
+                {patients.length === 0 
+                  ? "You don't have any patients yet. Patients can request you as their doctor."
+                  : "Try adjusting your search or filter criteria."
+                }
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -352,11 +359,20 @@ function DoctorHome({
                     </div>
                   </div>
                 </div>
-                <button className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                <button 
+                  onClick={() => handleJoinAppointment(appointment.id)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
                   Join
                 </button>
               </div>
             ))}
+            {appointments.length === 0 && (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No appointments scheduled for today</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -507,10 +523,46 @@ export default function DoctorDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [showEmergencyCall, setShowEmergencyCall] = useState(false);
-  const [patients, setPatients] = useState<Patient[]>(mockPatients);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
+  const [pendingRequests, setPendingRequests] = useState<PatientDoctorRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Load doctor's patients and requests on component mount
+  useEffect(() => {
+    loadDoctorData();
+  }, []);
+
+  const loadDoctorData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load patients affiliated with this doctor
+      const doctorPatients = await doctorService.getPatients();
+      
+      // Transform patients to include additional fields
+      const transformedPatients: Patient[] = doctorPatients.map(patient => ({
+        ...patient,
+        condition: patient.medical_history ? 'Chronic condition' : 'General care',
+        status: 'Stable' as const,
+        priority: 'Low' as const,
+        lastVisit: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      }));
+      
+      setPatients(transformedPatients);
+      
+      // Load pending requests
+      const requests = await doctorService.getPendingRequests();
+      setPendingRequests(requests);
+      
+    } catch (error) {
+      console.error('Error loading doctor data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -552,6 +604,8 @@ export default function DoctorDashboard() {
             setPatients={setPatients}
             appointments={appointments}
             setAppointments={setAppointments}
+            pendingRequests={pendingRequests}
+            isLoading={isLoading}
           />
         );
       case 'schedule':
@@ -573,6 +627,8 @@ export default function DoctorDashboard() {
             setPatients={setPatients}
             appointments={appointments}
             setAppointments={setAppointments}
+            pendingRequests={pendingRequests}
+            isLoading={isLoading}
           />
         );
     }
@@ -584,7 +640,7 @@ export default function DoctorDashboard() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex flex-col relative">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex">
       {/* Emergency Button - Fixed in Corner */}
       <button
         onClick={handleEmergencyCall}
@@ -615,72 +671,74 @@ export default function DoctorDashboard() {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg">
-              <Heart className="w-5 h-5 text-white" />
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg">
+                <Heart className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-bold text-gray-900">VirtualDoc</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">VirtualDoc</span>
+            <button 
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button 
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-gray-500 hover:text-gray-700"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id;
-            
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavigation(item.id)}
-                className={`
-                  w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors font-medium text-left
-                  ${isActive 
-                    ? 'bg-green-600 text-white' 
-                    : 'text-gray-700 hover:bg-gray-100'
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+          <nav className="flex-1 px-4 py-6 space-y-2">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigation(item.id)}
+                  className={`
+                    w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors font-medium text-left
+                    ${isActive 
+                      ? 'bg-green-600 text-white' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-gray-600" />
+          <div className="border-t border-gray-200 p-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                <User className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.name}
+                </p>
+                <p className="text-xs text-gray-600">Doctor</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name}
-              </p>
-              <p className="text-xs text-gray-600">Doctor</p>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign out</span>
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign out</span>
-          </button>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between h-16 px-4 lg:px-8">
@@ -697,7 +755,9 @@ export default function DoctorDashboard() {
             <div className="flex items-center space-x-4">
               <button className="text-gray-500 hover:text-gray-700 relative">
                 <Bell className="w-6 h-6" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                {pendingRequests.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                )}
               </button>
 
               <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
@@ -708,7 +768,7 @@ export default function DoctorDashboard() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8 pb-24">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           {renderCurrentView()}
         </main>
       </div>
