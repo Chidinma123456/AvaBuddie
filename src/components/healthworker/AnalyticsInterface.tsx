@@ -6,6 +6,7 @@ import {
   PieChart, 
   Users, 
   Activity, 
+  AlertTriangle,
   Heart,
   Thermometer,
   Droplets,
@@ -197,7 +198,7 @@ export default function AnalyticsInterface() {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <Activity className="w-6 h-6 text-red-600" />
+              <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <span className="text-2xl font-bold text-gray-900">{mockAnalyticsData.workloadStats.criticalCases}</span>
           </div>
@@ -372,7 +373,7 @@ export default function AnalyticsInterface() {
           
           <div className="bg-red-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <Activity className="w-5 h-5 text-red-600" />
+              <AlertTriangle className="w-5 h-5 text-red-600" />
               <span className="text-2xl font-bold text-red-900">
                 {mockAnalyticsData.workloadStats.criticalCases}
               </span>

@@ -14,7 +14,7 @@ import {
   Pause,
   Square
 } from 'lucide-react';
-import { geminiService } from '../../services/geminiService';
+import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';
 import { chatHistoryService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
 
@@ -26,11 +26,6 @@ interface Message {
   audioUrl?: string;
   imageUrl?: string;
   isVoiceMessage?: boolean;
-}
-
-interface GeminiMessage {
-  role: 'user' | 'assistant';
-  parts: string;
 }
 
 interface ChatInterfaceProps {
@@ -138,7 +133,7 @@ export default function ChatInterface({
             if (msg.type === 'user') {
               history.push({ role: 'user', parts: msg.content });
             } else if (msg.type === 'ai') {
-              history.push({ role: 'assistant', parts: msg.content });
+              history.push({ role: 'model', parts: msg.content });
             }
           });
           setConversationHistory(history);
@@ -227,15 +222,9 @@ export default function ChatInterface({
 
         aiResponse = await geminiService.analyzeImage(base64, content);
       } else {
-        // Convert conversation history to the correct format
-        const geminiHistory: GeminiMessage[] = conversationHistory.map(msg => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          parts: msg.parts
-        }));
-
         aiResponse = await geminiService.generateResponse(
           content, 
-          geminiHistory, 
+          conversationHistory, 
           !!imageUrl, 
           isVoiceMessage
         );
@@ -257,7 +246,7 @@ export default function ChatInterface({
       setConversationHistory(prev => [
         ...prev,
         { role: 'user', parts: content },
-        { role: 'assistant', parts: aiResponse }
+        { role: 'model', parts: aiResponse }
       ]);
 
       // Generate AI voice response using ElevenLabs (only if API is configured)
