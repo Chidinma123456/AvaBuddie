@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';
-import { chatHistoryService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
+import { chatHistoryService, storageService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
 
 interface Message {
   id: string;
@@ -62,6 +62,7 @@ export default function ChatInterface({
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [isSavingMessage, setIsSavingMessage] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -462,6 +463,12 @@ export default function ChatInterface({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Check if session is loaded
+    if (!currentSession) {
+      alert('Please wait for the chat session to load before uploading images.');
+      return;
+    }
+
     try {
       // Validate file type
       if (!file.type.startsWith('image/')) {
@@ -477,16 +484,19 @@ export default function ChatInterface({
 
       console.log('Processing uploaded image:', file.name, file.type, file.size);
 
-      // Create object URL for the image
-      const imageUrl = URL.createObjectURL(file);
+      setIsUploadingImage(true);
+
+      // Upload image to Supabase Storage
+      const imageUrl = await storageService.uploadImage(file, currentSession.id);
       
-      // Send message with image
+      // Send message with uploaded image
       await handleSendMessage('Please analyze this image and provide medical insights.', undefined, imageUrl);
       
     } catch (error) {
       console.error('Error handling image upload:', error);
-      alert('Failed to process the image. Please try again.');
+      alert(`Failed to upload the image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
+      setIsUploadingImage(false);
       // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -601,7 +611,7 @@ export default function ChatInterface({
                       alt="Uploaded medical image" 
                       className="w-full h-32 object-cover rounded-lg border"
                       onError={(e) => {
-                        console.error('Error loading image:', e);
+                        console.error('Error loading image:', message.imageUrl);
                         e.currentTarget.style.display = 'none';
                       }}
                     />
@@ -659,7 +669,7 @@ export default function ChatInterface({
           </div>
         ))}
         
-        {(isLoading || isTranscribing || isProcessingImage) && (
+        {(isLoading || isTranscribing || isProcessingImage || isUploadingImage) && (
           <div className="flex justify-start">
             <div className="flex items-start space-x-3 max-w-xs lg:max-w-md">
               <div className="w-8 h-8 rounded-full bg-white border-2 border-blue-200 overflow-hidden flex items-center justify-center">
@@ -674,6 +684,7 @@ export default function ChatInterface({
                   <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
                   <span className="text-sm text-gray-600">
                     {isTranscribing ? 'Converting speech to text...' : 
+                     isUploadingImage ? 'Uploading image...' :
                      isProcessingImage ? 'Analyzing image...' : 
                      'Dr. Ava is analyzing...'}
                   </span>
@@ -718,7 +729,7 @@ export default function ChatInterface({
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors"
                 rows={1}
                 style={{ minHeight: '48px', maxHeight: '120px' }}
-                disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
+                disabled={isRecording || isLoading || isTranscribing || isProcessingImage || isUploadingImage}
               />
             </div>
           </div>
@@ -734,9 +745,9 @@ export default function ChatInterface({
             
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center transition-colors"
-              disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
-              title="Upload medical image"
+              className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isRecording || isLoading || isTranscribing || isProcessingImage || isUploadingImage || !currentSession}
+              title={!currentSession ? "Please wait for chat session to load" : "Upload medical image"}
             >
               <Camera className="w-5 h-5" />
             </button>
@@ -748,7 +759,7 @@ export default function ChatInterface({
                   ? 'bg-red-600 hover:bg-red-700 text-white' 
                   : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
               }`}
-              disabled={isLoading || isTranscribing || isProcessingImage}
+              disabled={isLoading || isTranscribing || isProcessingImage || isUploadingImage}
               title={isRecording ? 'Stop recording' : 'Record voice message'}
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -756,7 +767,7 @@ export default function ChatInterface({
             
             <button
               onClick={handleSendClick}
-              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing || isProcessingImage}
+              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing || isProcessingImage || isUploadingImage}
               className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors"
               title="Send message"
             >
