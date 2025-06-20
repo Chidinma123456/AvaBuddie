@@ -471,7 +471,7 @@ export const patientService = {
     if (error) throw error;
 
     // Create notification for doctor (don't await to avoid blocking)
-    supabase
+    Promise.resolve(supabase
       .from('notifications')
       .insert({
         user_id: doctorId,
@@ -479,7 +479,7 @@ export const patientService = {
         title: 'New Patient Request',
         message: `${profile.full_name} has requested you as their doctor.`,
         data: { request_id: data.id, patient_id: profile.id }
-      })
+      }))
       .then(() => console.log('Notification sent'))
       .catch((err: any) => console.error('Failed to send notification:', err));
 
@@ -582,7 +582,7 @@ export const patientService = {
     if (error) throw error;
 
     // Create notification for doctor (don't await)
-    supabase
+    Promise.resolve(supabase
       .from('notifications')
       .insert({
         user_id: doctorId,
@@ -590,7 +590,7 @@ export const patientService = {
         title: 'New Consultation Report',
         message: `${profile.full_name} has sent you a consultation report.`,
         data: { report_id: data.id, patient_id: profile.id }
-      })
+      }))
       .then(() => console.log('Notification sent'))
       .catch((err: any) => console.error('Failed to send notification:', err));
 
