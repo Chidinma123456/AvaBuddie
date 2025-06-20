@@ -39,6 +39,23 @@ export default function LandingPage() {
         </div>
       </header>
 
+      {/* Bolt.new Logo - Fixed in top right corner */}
+      <div className="fixed top-4 right-4 z-50">
+        <a 
+          href="https://bolt.new" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="block transition-transform hover:scale-110 duration-200"
+          title="Powered by Bolt.new"
+        >
+          <img 
+            src="/black_circle_360x360 copy.png" 
+            alt="Powered by Bolt.new" 
+            className="w-12 h-12 rounded-full shadow-lg hover:shadow-xl transition-shadow duration-200"
+          />
+        </a>
+      </div>
+
       {/* Hero Section */}
       <section className="pt-20 pb-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 via-transparent to-teal-600/5"></div>
@@ -217,8 +234,21 @@ export default function LandingPage() {
               </div>
               <span className="text-2xl font-bold">VirtualDoc</span>
             </div>
-            <div className="text-gray-400">
-              © 2025 VirtualDoc. Transforming healthcare through AI.
+            <div className="text-gray-400 flex items-center space-x-4">
+              <span>© 2025 VirtualDoc. Transforming healthcare through AI.</span>
+              <a 
+                href="https://bolt.new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <img 
+                  src="/black_circle_360x360 copy.png" 
+                  alt="Built with Bolt.new" 
+                  className="w-6 h-6 rounded-full"
+                />
+                <span className="text-sm">Built with Bolt.new</span>
+              </a>
             </div>
           </div>
         </div>
