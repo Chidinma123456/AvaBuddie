@@ -16,6 +16,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [conversationUrl, setConversationUrl] = useState<string | null>(null);
   const [hasUserMedia, setHasUserMedia] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -36,36 +37,88 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const setupUserMedia = async () => {
     try {
       console.log('Requesting user media...');
+      setMediaError(null);
+      
+      // Check if browser supports getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Your browser does not support camera and microphone access. Please use a modern browser like Chrome, Firefox, or Safari.');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 60 }
         },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100
         }
       });
       
-      console.log('User media obtained:', stream);
+      console.log('User media obtained successfully:', {
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
+      
       streamRef.current = stream;
       setHasUserMedia(true);
       
       // Set up video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        // Add event listeners for video element
         videoRef.current.onloadedmetadata = () => {
-          console.log('Video metadata loaded, playing video...');
-          videoRef.current?.play().catch(e => console.error('Error playing video:', e));
+          console.log('Video metadata loaded');
+          if (videoRef.current) {
+            videoRef.current.play().catch(e => {
+              console.error('Error playing video:', e);
+              setMediaError('Failed to start video playback');
+            });
+          }
         };
+
+        videoRef.current.oncanplay = () => {
+          console.log('Video can play');
+        };
+
+        videoRef.current.onerror = (e) => {
+          console.error('Video element error:', e);
+          setMediaError('Video playback error');
+        };
+
+        // Force load the video
+        videoRef.current.load();
       }
 
       return stream;
     } catch (err) {
       console.error('Error accessing user media:', err);
-      throw new Error('Unable to access camera and microphone. Please check your permissions and try again.');
+      
+      let errorMessage = 'Unable to access camera and microphone.';
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = 'Camera and microphone access denied. Please allow access and try again.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera or microphone found. Please connect a camera and microphone.';
+        } else if (err.name === 'NotReadableError') {
+          errorMessage = 'Camera or microphone is already in use by another application.';
+        } else if (err.name === 'OverconstrainedError') {
+          errorMessage = 'Camera or microphone does not meet the required specifications.';
+        } else if (err.name === 'SecurityError') {
+          errorMessage = 'Camera and microphone access blocked due to security restrictions.';
+        } else {
+          errorMessage = err.message || errorMessage;
+        }
+      }
+      
+      setMediaError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -73,6 +126,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setError(null);
+    setMediaError(null);
 
     try {
       // First, get user media
@@ -162,7 +216,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     if (streamRef.current) {
       const audioTracks = streamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
-        track.enabled = !isMuted;
+        track.enabled = isMuted; // Toggle the enabled state
         console.log(`Audio track ${isMuted ? 'enabled' : 'disabled'}`);
       });
       setIsMuted(!isMuted);
@@ -173,8 +227,8 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     if (streamRef.current) {
       const videoTracks = streamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
-        track.enabled = isVideoEnabled;
-        console.log(`Video track ${isVideoEnabled ? 'disabled' : 'enabled'}`);
+        track.enabled = !isVideoEnabled; // Toggle the enabled state
+        console.log(`Video track ${!isVideoEnabled ? 'enabled' : 'disabled'}`);
       });
       setIsVideoEnabled(!isVideoEnabled);
     }
@@ -262,11 +316,11 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   </div>
                 </div>
 
-                {error && (
+                {(error || mediaError) && (
                   <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-6 max-w-md mx-auto">
                     <div className="flex items-center space-x-2 text-red-400">
                       <AlertCircle className="w-5 h-5" />
-                      <span className="text-sm">{error}</span>
+                      <span className="text-sm">{error || mediaError}</span>
                     </div>
                   </div>
                 )}
@@ -358,14 +412,14 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
 
               {/* Patient Video */}
               <div className="bg-gray-800 rounded-xl overflow-hidden relative">
-                {hasUserMedia ? (
+                {hasUserMedia && !mediaError ? (
                   <>
                     <video
                       ref={videoRef}
                       autoPlay
                       muted
                       playsInline
-                      className={`w-full h-full object-cover transform scale-x-[-1] ${!isVideoEnabled ? 'hidden' : ''}`}
+                      className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
                       style={{ transform: 'scaleX(-1)' }} // Mirror the video
                     />
                     {!isVideoEnabled && (
@@ -382,7 +436,9 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                     <div className="text-center text-white">
                       <AlertCircle className="w-12 h-12 text-yellow-400 mx-auto mb-2" />
                       <p className="text-sm">Camera not available</p>
-                      <p className="text-xs text-gray-400 mt-1">Check permissions</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {mediaError || 'Check permissions'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -449,9 +505,14 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               <p className="text-white/50 text-xs">
                 Dr. Ava is an AI assistant. For emergencies, please contact emergency services immediately.
               </p>
-              {hasUserMedia && (
+              {hasUserMedia && !mediaError && (
                 <p className="text-green-400/70 text-xs mt-1">
                   ✓ Camera and microphone connected
+                </p>
+              )}
+              {mediaError && (
+                <p className="text-red-400/70 text-xs mt-1">
+                  ⚠ {mediaError}
                 </p>
               )}
             </div>
