@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, User, Save, Search, Plus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { patientService, type Doctor } from '../../services/supabaseService';

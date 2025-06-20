@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Calendar, Clock, X, User, CheckCircle } from 'lucide-react';
 
 interface DoctorReviewModalProps {
