@@ -23,7 +23,7 @@ export default function LandingPage() {
                 <Heart className="w-6 h-6 text-white" />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
-                VirtualDoc
+                BuddyDoc
               </span>
             </div>
             <div className="flex items-center space-x-4">
@@ -62,7 +62,7 @@ export default function LandingPage() {
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-8 leading-tight">
               Your AI-Driven
               <span className="bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent block">
-                Telemedicine
+                Health Buddy
               </span>
               Companion
             </h1>
@@ -210,7 +210,7 @@ export default function LandingPage() {
             Ready to Transform Healthcare?
           </h2>
           <p className="text-xl text-gray-600 mb-12">
-            Join thousands of healthcare professionals and patients already using VirtualDoc 
+            Join thousands of healthcare professionals and patients already using BuddyDoc 
             for better health outcomes.
           </p>
           <Link 
@@ -230,10 +230,10 @@ export default function LandingPage() {
               <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg">
                 <Heart className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold">VirtualDoc</span>
+              <span className="text-2xl font-bold">BuddyDoc</span>
             </div>
             <div className="text-gray-400 flex items-center space-x-4">
-              <span>© 2025 VirtualDoc. Transforming healthcare through AI.</span>
+              <span>© 2025 BuddyDoc. Transforming healthcare through AI.</span>
               <a 
                 href="https://bolt.new" 
                 target="_blank" 

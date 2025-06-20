@@ -1,9 +1,9 @@
-# VirtualDoc - AI-Driven Telemedicine Platform
+# BuddyDoc - AI-Driven Telemedicine Platform
 
 <div align="center">
   <img src="public/ava.webp" alt="Dr. Ava" width="120" height="120" style="border-radius: 50%;">
   
-  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/virtualdoc)
+  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/buddydoc)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
   [![React](https://img.shields.io/badge/React-18.3.1-61dafb.svg)](https://reactjs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-3178c6.svg)](https://www.typescriptlang.org/)
@@ -12,7 +12,7 @@
 
 ## 🏥 Overview
 
-VirtualDoc is a comprehensive AI-powered telemedicine platform that connects patients, healthcare workers, and doctors through intelligent assistance and seamless communication. Built with modern web technologies, it provides 24/7 healthcare support with advanced AI capabilities.
+BuddyDoc is a comprehensive AI-powered telemedicine platform that connects patients, healthcare workers, and doctors through intelligent assistance and seamless communication. Built with modern web technologies, it provides 24/7 healthcare support with advanced AI capabilities.
 
 ### ✨ Key Features
 
@@ -67,8 +67,8 @@ VirtualDoc is a comprehensive AI-powered telemedicine platform that connects pat
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/virtualdoc.git
-   cd virtualdoc
+   git clone https://github.com/yourusername/buddydoc.git
+   cd buddydoc
    ```
 
 2. **Install dependencies**
@@ -191,6 +191,7 @@ npm run deploy:docker
    ```bash
    npm run build
    ```
+
 ## 📱 Screenshots
 
 ### Patient Dashboard
@@ -214,7 +215,7 @@ npm run deploy:docker
 ### Project Structure
 
 ```
-virtualdoc/
+buddydoc/
 ├── public/                 # Static assets
 ├── src/
 │   ├── components/        # React components
@@ -288,9 +289,9 @@ virtualdoc/
 - [User Guide](docs/user-guide.md)
 
 ### Getting Help
-- 📧 Email: support@virtualdoc.com
-- 💬 Discord: [Join our community](https://discord.gg/virtualdoc)
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/virtualdoc/issues)
+- 📧 Email: support@buddydoc.com
+- 💬 Discord: [Join our community](https://discord.gg/buddydoc)
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/buddydoc/issues)
 
 ## 📄 License
 
@@ -329,5 +330,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   <p>Built with ❤️ for better healthcare accessibility</p>
-  <p>© 2025 VirtualDoc. All rights reserved.</p>
+  <p>© 2025 BuddyDoc. All rights reserved.</p>
 </div>
