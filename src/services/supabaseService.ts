@@ -4,65 +4,124 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Better error handling for missing environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+  console.error('Missing Supabase environment variables:', {
+    VITE_SUPABASE_URL: supabaseUrl ? 'Set' : 'Missing',
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'Set' : 'Missing'
+  });
+  
+  // Don't throw error in production, just log it
+  if (import.meta.env.MODE === 'development') {
+    throw new Error('Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+  }
 }
 
 if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
-  throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
+  console.error('Placeholder Supabase credentials detected. Please update with actual values.');
+  
+  if (import.meta.env.MODE === 'development') {
+    throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
+  }
 }
 
-// Validate URL format
-try {
-  new URL(supabaseUrl);
-} catch {
-  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-    flowType: 'pkce'
-  },
-  db: {
-    schema: 'public'
-  },
-  global: {
-    headers: {
-      'x-client-info': 'virtualdoc-web'
-    },
-    fetch: (url, options = {}) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
-      return fetch(url, {
-        ...options,
-        signal: controller.signal
-      }).then(response => {
-        clearTimeout(timeoutId);
-        return response;
-      }).catch(error => {
-        clearTimeout(timeoutId);
-        console.error('Supabase fetch error:', error);
-        
-        if (error.name === 'AbortError') {
-          throw new Error('Connection timeout: Unable to reach Supabase server');
-        }
-        
-        if (error.message.includes('Failed to fetch')) {
-          throw new Error('Network error: Please check your internet connection and Supabase URL');
-        }
-        
-        throw new Error(`Failed to connect to Supabase: ${error.message}`);
-      });
+// Validate URL format only if URL is provided
+if (supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL') {
+  try {
+    new URL(supabaseUrl);
+  } catch {
+    console.error('Invalid Supabase URL format:', supabaseUrl);
+    if (import.meta.env.MODE === 'development') {
+      throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
     }
   }
-});
+}
 
-// Test connection on initialization
+// Create a fallback client if environment variables are missing (for production)
+let supabase: any;
+
+if (supabaseUrl && supabaseAnonKey && 
+    supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL' && 
+    supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY') {
+  
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+      flowType: 'pkce'
+    },
+    db: {
+      schema: 'public'
+    },
+    global: {
+      headers: {
+        'x-client-info': 'buddydoc-web'
+      },
+      fetch: (url, options = {}) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
+        return fetch(url, {
+          ...options,
+          signal: controller.signal
+        }).then(response => {
+          clearTimeout(timeoutId);
+          return response;
+        }).catch(error => {
+          clearTimeout(timeoutId);
+          console.error('Supabase fetch error:', error);
+          
+          if (error.name === 'AbortError') {
+            throw new Error('Connection timeout: Unable to reach Supabase server');
+          }
+          
+          if (error.message.includes('Failed to fetch')) {
+            throw new Error('Network error: Please check your internet connection and Supabase URL');
+          }
+          
+          throw new Error(`Failed to connect to Supabase: ${error.message}`);
+        });
+      }
+    }
+  });
+} else {
+  // Create a mock client for when environment variables are missing
+  console.warn('Supabase client not initialized due to missing environment variables. Using mock client.');
+  
+  supabase = {
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signInWithPassword: () => Promise.reject(new Error('Supabase not configured')),
+      signUp: () => Promise.reject(new Error('Supabase not configured')),
+      signOut: () => Promise.resolve({ error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+    },
+    from: () => ({
+      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
+      insert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+      update: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+      delete: () => Promise.resolve({ error: { message: 'Supabase not configured' } })
+    }),
+    channel: () => ({
+      on: () => ({ subscribe: () => {} })
+    }),
+    rpc: () => Promise.resolve({ error: { message: 'Supabase not configured' } })
+  };
+}
+
+export { supabase };
+
+// Test connection on initialization only if properly configured
 const testConnection = async () => {
+  if (!supabaseUrl || !supabaseAnonKey || 
+      supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || 
+      supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
+    console.log('Skipping Supabase connection test - not configured');
+    return;
+  }
+  
   try {
     const { error } = await supabase.from('profiles').select('count').limit(1);
     if (error && error.code !== 'PGRST116') {
@@ -471,7 +530,7 @@ export const patientService = {
     if (error) throw error;
 
     // Create notification for doctor (don't await to avoid blocking)
-    supabase
+    Promise.resolve(supabase
       .from('notifications')
       .insert({
         user_id: doctorId,
@@ -479,7 +538,7 @@ export const patientService = {
         title: 'New Patient Request',
         message: `${profile.full_name} has requested you as their doctor.`,
         data: { request_id: data.id, patient_id: profile.id }
-      })
+      }))
       .then(() => console.log('Notification sent'))
       .catch((err: any) => console.error('Failed to send notification:', err));
 
@@ -582,7 +641,7 @@ export const patientService = {
     if (error) throw error;
 
     // Create notification for doctor (don't await)
-    supabase
+    Promise.resolve(supabase
       .from('notifications')
       .insert({
         user_id: doctorId,
@@ -590,7 +649,7 @@ export const patientService = {
         title: 'New Consultation Report',
         message: `${profile.full_name} has sent you a consultation report.`,
         data: { report_id: data.id, patient_id: profile.id }
-      })
+      }))
       .then(() => console.log('Notification sent'))
       .catch((err: any) => console.error('Failed to send notification:', err));
 
