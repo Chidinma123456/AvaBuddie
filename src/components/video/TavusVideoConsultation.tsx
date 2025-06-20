@@ -16,12 +16,18 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [conversationUrl, setConversationUrl] = useState<string | null>(null);
   const [hasUserMedia, setHasUserMedia] = useState(false);
+  const [configStatus, setConfigStatus] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
+    // Check Tavus configuration status
+    const status = tavusService.getConfigurationStatus();
+    setConfigStatus(status);
+    console.log('Tavus configuration status:', status);
+
     return () => {
       // Cleanup on unmount
       if (streamRef.current) {
@@ -78,6 +84,12 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
       // First, get user media
       await setupUserMedia();
 
+      // Check if Tavus is properly configured
+      if (!tavusService.isConfigured()) {
+        console.warn('Tavus not configured, using mock mode');
+        setError('Tavus API not configured. Using demo mode.');
+      }
+
       // Create Tavus conversation
       console.log('Creating Tavus conversation...');
       const conversation = await tavusService.createConversation();
@@ -90,7 +102,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
       }
 
       // Add initial medical context to the conversation
-      if (conversation.conversation_id) {
+      if (conversation.conversation_id && !conversation.conversation_id.startsWith('mock_') && !conversation.conversation_id.startsWith('fallback_')) {
         await tavusService.updateConversationContext(
           conversation.conversation_id,
           'Patient has initiated a video consultation for medical guidance and health assessment.'
@@ -106,7 +118,21 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
 
     } catch (err) {
       console.error('Error starting consultation:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start video consultation. Please try again.');
+      let errorMessage = 'Failed to start video consultation. Please try again.';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('API key')) {
+          errorMessage = 'Tavus API key not configured. Please check your environment variables.';
+        } else if (err.message.includes('persona')) {
+          errorMessage = 'Dr. Ava persona not found. Please check your Tavus configuration.';
+        } else if (err.message.includes('permissions')) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
       setIsConnecting(false);
       setConnectionStatus('error');
     }
@@ -213,6 +239,17 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   Dr. Ava is trained in medical knowledge and will provide professional guidance for your health concerns.
                 </p>
                 
+                {/* Configuration Status */}
+                <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4 mb-6">
+                  <div className="flex items-center justify-center space-x-2 mb-2">
+                    <div className={`w-3 h-3 rounded-full ${tavusService.isConfigured() ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+                    <span className="text-white font-medium">
+                      {tavusService.isConfigured() ? 'Tavus Connected' : 'Demo Mode'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/70">{configStatus}</p>
+                </div>
+                
                 <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-6 mb-8">
                   <h4 className="text-white font-semibold mb-3">What Dr. Ava can help with:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-white/80">
@@ -284,7 +321,9 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
               {/* AI Doctor Video */}
               <div className="bg-gray-800 rounded-xl overflow-hidden relative">
-                {conversationUrl && !conversationUrl.includes('mock') ? (
+                {conversationUrl && 
+                 !conversationUrl.includes('mock-tavus-conversation') && 
+                 tavusService.isConfigured() ? (
                   <iframe
                     ref={iframeRef}
                     src={conversationUrl}
@@ -311,9 +350,9 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                           "Hello! I'm ready to help with your health concerns. Please tell me what's bothering you today."
                         </p>
                       </div>
-                      {conversationUrl?.includes('mock') && (
+                      {!tavusService.isConfigured() && (
                         <div className="mt-4 text-xs opacity-60">
-                          Demo Mode - Using mock AI response
+                          Demo Mode - Tavus API not configured
                         </div>
                       )}
                     </div>
@@ -423,6 +462,11 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               {hasUserMedia && (
                 <p className="text-green-400/70 text-xs mt-1">
                   ✓ Camera and microphone connected
+                </p>
+              )}
+              {!tavusService.isConfigured() && (
+                <p className="text-yellow-400/70 text-xs mt-1">
+                  ⚠️ Running in demo mode - Configure Tavus API for full functionality
                 </p>
               )}
             </div>
