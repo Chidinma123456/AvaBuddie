@@ -150,14 +150,6 @@ Remember: You are here to support and guide patients, but professional medical c
 
       console.log('Tavus conversation created successfully:', result);
       
-      // Add system prompt after creation
-      if (result.conversation_id) {
-        await this.updateConversationContext(
-          result.conversation_id,
-          'Patient has initiated a video consultation for medical guidance and health assessment.'
-        );
-      }
-
       return result;
     } catch (error) {
       console.error('Error creating Tavus conversation:', error);
@@ -171,7 +163,7 @@ Remember: You are here to support and guide patients, but professional medical c
     }
   }
 
-  async updateConversationContext(conversationId: string, context: string): Promise<void> {
+  async updateConversationContext(conversationId: string, context: string): Promise<boolean> {
     try {
       // Skip API call if no API key or using mock/fallback conversation
       if (!this.apiKey || 
@@ -179,7 +171,7 @@ Remember: You are here to support and guide patients, but professional medical c
           conversationId.startsWith('mock_') || 
           conversationId.startsWith('fallback_')) {
         console.log('Skipping conversation context update - using mock/fallback mode');
-        return;
+        return true;
       }
 
       const contextData = {
@@ -189,6 +181,10 @@ Remember: You are here to support and guide patients, but professional medical c
 
       console.log('Updating conversation context for:', conversationId);
 
+      // Add timeout and better error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch(`${this.baseUrl}/v2/conversations/${conversationId}/context`, {
         method: 'PUT',
         headers: {
@@ -196,18 +192,47 @@ Remember: You are here to support and guide patients, but professional medical c
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(contextData),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Failed to update conversation context:', errorText);
-        throw new Error(`Failed to update conversation context: ${response.status} ${response.statusText}`);
+        console.error('Failed to update conversation context:', response.status, errorText);
+        
+        // Log specific error details for debugging
+        if (response.status === 0) {
+          console.error('Network error: Unable to reach Tavus API. Check internet connection and CORS settings.');
+        } else if (response.status === 401) {
+          console.error('Authentication error: Invalid API key or insufficient permissions.');
+        } else if (response.status === 403) {
+          console.error('Authorization error: API key does not have permission to update conversation context.');
+        } else if (response.status === 404) {
+          console.error('Conversation not found: The conversation ID may be invalid or expired.');
+        }
+        
+        return false;
       }
 
       console.log('Conversation context updated successfully');
+      return true;
     } catch (error) {
       console.error('Error updating conversation context:', error);
-      // Don't throw the error to prevent breaking the consultation flow
+      
+      // Log specific error types for better debugging
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error('Network error: Unable to reach Tavus API. This could be due to:');
+        console.error('- Internet connectivity issues');
+        console.error('- CORS restrictions (Tavus API may not allow requests from localhost)');
+        console.error('- Firewall or network security blocking the request');
+        console.error('- Tavus API service temporarily unavailable');
+      } else if (error.name === 'AbortError') {
+        console.error('Request timeout: Tavus API did not respond within 10 seconds');
+      }
+      
+      // Return false instead of throwing to make this non-blocking
+      return false;
     }
   }
 
