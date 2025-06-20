@@ -324,7 +324,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 <h3 className="text-3xl font-bold text-white mb-4">Start AI Video Consultation</h3>
                 <p className="text-white/70 mb-6 text-lg leading-relaxed">
                   Connect with Dr. Ava, your AI-powered virtual doctor, for personalized medical consultation. 
-                  Dr. Ava uses persona ID: p9863a04af01 for authentic medical interactions.
                 </p>
                 
                 <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-6 mb-8">
