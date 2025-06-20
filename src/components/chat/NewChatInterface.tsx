@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MessageCircle, Camera, Mic, Send, ArrowRight } from 'lucide-react';
 
 interface NewChatInterfaceProps {

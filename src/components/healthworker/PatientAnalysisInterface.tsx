@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   ArrowLeft, 
   User, 
@@ -78,16 +78,16 @@ export default function PatientAnalysisInterface({ patient, onBack }: PatientAna
     setVitals(prev => ({ ...prev, [field]: value }));
   };
 
-  const addSymptom = () => {
+  const addSymptom = useCallback(() => {
     if (newSymptom.trim() && !symptoms.includes(newSymptom.trim())) {
       setSymptoms(prev => [...prev, newSymptom.trim()]);
       setNewSymptom('');
     }
-  };
+  }, [newSymptom, symptoms]);
 
-  const removeSymptom = (symptom: string) => {
+  const removeSymptom = useCallback((symptom: string) => {
     setSymptoms(prev => prev.filter(s => s !== symptom));
-  };
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

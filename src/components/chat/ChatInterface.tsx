@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Send, 
   Mic, 
@@ -14,8 +14,9 @@ import {
   Pause,
   Square
 } from 'lucide-react';
-import { geminiService } from '../../services/geminiService';
+import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';
+import { chatHistoryService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
 
 interface Message {
   id: string;
@@ -27,18 +28,21 @@ interface Message {
   isVoiceMessage?: boolean;
 }
 
-interface GeminiMessage {
-  role: 'user' | 'assistant';
-  parts: string;
-}
-
 interface ChatInterfaceProps {
   onEmergencyEscalate?: () => void;
   onRequestDoctorReview?: () => void;
   initialMessage?: string;
+  sessionId?: string;
+  onSessionChange?: (sessionId: string) => void;
 }
 
-export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorReview, initialMessage }: ChatInterfaceProps) {
+export default function ChatInterface({ 
+  onEmergencyEscalate, 
+  onRequestDoctorReview, 
+  initialMessage,
+  sessionId,
+  onSessionChange 
+}: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -55,6 +59,8 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [conversationHistory, setConversationHistory] = useState<GeminiMessage[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
+  const [isSavingMessage, setIsSavingMessage] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -70,6 +76,111 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Load chat session on mount or when sessionId changes
+  useEffect(() => {
+    loadChatSession();
+  }, [sessionId]);
+
+  const loadChatSession = async () => {
+    try {
+      let session: ChatSession | null = null;
+
+      if (sessionId) {
+        // Load specific session
+        session = await chatHistoryService.getSession(sessionId);
+      } else {
+        // Load current/latest session
+        session = await chatHistoryService.getCurrentSession();
+      }
+
+      if (session) {
+        setCurrentSession(session);
+        
+        // Convert stored messages to component format
+        const storedMessages: Message[] = session.messages.map((msg: ChatMessage) => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          audioUrl: msg.audioUrl,
+          imageUrl: msg.imageUrl,
+          isVoiceMessage: msg.isVoiceMessage
+        }));
+
+        // Add welcome message if no stored messages
+        if (storedMessages.length === 0) {
+          setMessages([{
+            id: '1',
+            type: 'ai',
+            content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
+            timestamp: new Date()
+          }]);
+        } else {
+          setMessages([
+            {
+              id: '1',
+              type: 'ai',
+              content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
+              timestamp: new Date()
+            },
+            ...storedMessages
+          ]);
+
+          // Rebuild conversation history for AI context
+          const history: GeminiMessage[] = [];
+          storedMessages.forEach(msg => {
+            if (msg.type === 'user') {
+              history.push({ role: 'user', parts: msg.content });
+            } else if (msg.type === 'ai') {
+              history.push({ role: 'model', parts: msg.content });
+            }
+          });
+          setConversationHistory(history);
+        }
+
+        // Notify parent component of session change
+        if (onSessionChange && session.id !== sessionId) {
+          onSessionChange(session.id);
+        }
+      } else {
+        // Create new session if none exists
+        const newSession = await chatHistoryService.createNewSession();
+        setCurrentSession(newSession);
+        if (onSessionChange) {
+          onSessionChange(newSession.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat session:', error);
+      // Continue with default messages if loading fails
+    }
+  };
+
+  const saveMessageToHistory = async (message: Message) => {
+    if (!currentSession || isSavingMessage) return;
+
+    try {
+      setIsSavingMessage(true);
+      
+      const chatMessage: ChatMessage = {
+        id: message.id,
+        type: message.type,
+        content: message.content,
+        timestamp: message.timestamp.toISOString(),
+        audioUrl: message.audioUrl,
+        imageUrl: message.imageUrl,
+        isVoiceMessage: message.isVoiceMessage
+      };
+
+      await chatHistoryService.saveMessage(currentSession.id, chatMessage);
+    } catch (error) {
+      console.error('Error saving message to history:', error);
+      // Don't throw error to avoid breaking chat flow
+    } finally {
+      setIsSavingMessage(false);
+    }
+  };
 
   const handleSendMessage = useCallback(async (content: string, audioUrl?: string, imageUrl?: string, isVoiceMessage = false) => {
     if (!content.trim() && !audioUrl && !imageUrl) return;
@@ -90,6 +201,9 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
     setInputText(''); // Clear input immediately after adding to messages
     setIsLoading(true);
 
+    // Save user message to history
+    await saveMessageToHistory(userMessage);
+
     try {
       let aiResponse: string;
 
@@ -108,15 +222,9 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
 
         aiResponse = await geminiService.analyzeImage(base64, content);
       } else {
-        // Convert conversation history to the correct format
-        const geminiHistory: GeminiMessage[] = conversationHistory.map(msg => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          parts: msg.parts
-        }));
-
         aiResponse = await geminiService.generateResponse(
           content, 
-          geminiHistory, 
+          conversationHistory, 
           !!imageUrl, 
           isVoiceMessage
         );
@@ -131,11 +239,14 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
 
       setMessages(prev => [...prev, aiMessage]);
 
+      // Save AI message to history
+      await saveMessageToHistory(aiMessage);
+
       // Update conversation history for context
       setConversationHistory(prev => [
         ...prev,
         { role: 'user', parts: content },
-        { role: 'assistant', parts: aiResponse }
+        { role: 'model', parts: aiResponse }
       ]);
 
       // Generate AI voice response using ElevenLabs (only if API is configured)
@@ -166,10 +277,11 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
       };
       
       setMessages(prev => [...prev, errorMessage]);
+      await saveMessageToHistory(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [conversationHistory]);
+  }, [conversationHistory, currentSession, isSavingMessage]);
 
   // Handle initial message - only process once per unique message
   useEffect(() => {
@@ -582,7 +694,7 @@ export default function ChatInterface({ onEmergencyEscalate, onRequestDoctorRevi
         
         <div className="mt-2 text-center">
           <p className="text-xs text-gray-500">
-            🔒 Your conversations are secure
+            🔒 Your conversations are secure and automatically saved
           </p>
         </div>
       </div>

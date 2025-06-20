@@ -12,6 +12,13 @@ if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || supabaseAnonKey === 'YOUR_SUP
   throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
 }
 
+// Validate URL format
+try {
+  new URL(supabaseUrl);
+} catch {
+  throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -27,16 +34,49 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'x-client-info': 'virtualdoc-web'
     },
     fetch: (url, options = {}) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
       return fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(10000) // Increased timeout to 10 seconds
+        signal: controller.signal
+      }).then(response => {
+        clearTimeout(timeoutId);
+        return response;
       }).catch(error => {
+        clearTimeout(timeoutId);
         console.error('Supabase fetch error:', error);
+        
+        if (error.name === 'AbortError') {
+          throw new Error('Connection timeout: Unable to reach Supabase server');
+        }
+        
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error('Network error: Please check your internet connection and Supabase URL');
+        }
+        
         throw new Error(`Failed to connect to Supabase: ${error.message}`);
       });
     }
   }
 });
+
+// Test connection on initialization
+const testConnection = async () => {
+  try {
+    const { error } = await supabase.from('profiles').select('count').limit(1);
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Supabase connection test failed:', error.message);
+    } else {
+      console.log('Supabase connection established successfully');
+    }
+  } catch (error) {
+    console.warn('Supabase connection test failed:', error);
+  }
+};
+
+// Run connection test after a short delay to allow for initialization
+setTimeout(testConnection, 1000);
 
 // Types
 export interface Profile {
@@ -137,6 +177,27 @@ export interface Notification {
   data?: any;
   read: boolean;
   created_at: string;
+}
+
+// Chat History Types
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'ai';
+  content: string;
+  timestamp: string;
+  audioUrl?: string;
+  imageUrl?: string;
+  isVoiceMessage?: boolean;
+}
+
+export interface ChatSession {
+  id: string;
+  patient_id: string;
+  session_name: string;
+  messages: ChatMessage[];
+  last_message_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Profile Services
@@ -339,7 +400,18 @@ export const doctorService = {
       .eq('doctor_id', profile.id);
 
     if (error) throw error;
-    return data?.map(item => item.patient).filter(Boolean) as Profile[];
+    
+    // Fix the type conversion issue by properly extracting and typing the patient data
+    const patients: Profile[] = [];
+    if (data) {
+      for (const item of data) {
+        if (item.patient && typeof item.patient === 'object' && !Array.isArray(item.patient)) {
+          patients.push(item.patient as Profile);
+        }
+      }
+    }
+    
+    return patients;
   },
 
   async getPendingRequests(): Promise<PatientDoctorRequest[]> {
@@ -523,6 +595,143 @@ export const patientService = {
       .catch((err: any) => console.error('Failed to send notification:', err));
 
     return data;
+  }
+};
+
+// Chat History Services
+export const chatHistoryService = {
+  async getCurrentSession(): Promise<ChatSession | null> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('patient_id', profile.id)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching current session:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getCurrentSession:', error);
+      return null;
+    }
+  },
+
+  async createNewSession(sessionName?: string): Promise<ChatSession> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') {
+      throw new Error('Only patients can create chat sessions');
+    }
+
+    const defaultName = `Chat ${new Date().toLocaleDateString()}`;
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .insert({
+        patient_id: profile.id,
+        session_name: sessionName || defaultName,
+        messages: [],
+        last_message_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async saveMessage(sessionId: string, message: ChatMessage): Promise<void> {
+    try {
+      // Get current session
+      const { data: session, error: fetchError } = await supabase
+        .from('chat_sessions')
+        .select('messages')
+        .eq('id', sessionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Add new message to existing messages
+      const updatedMessages = [...(session.messages || []), message];
+
+      // Update session with new message
+      const { error: updateError } = await supabase
+        .from('chat_sessions')
+        .update({
+          messages: updatedMessages,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (updateError) throw updateError;
+    } catch (error) {
+      console.error('Error saving message:', error);
+      throw error;
+    }
+  },
+
+  async getAllSessions(): Promise<ChatSession[]> {
+    const profile = await profileService.getCurrentProfile();
+    if (!profile || profile.role !== 'patient') return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('patient_id', profile.id)
+        .order('last_message_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching all sessions:', error);
+      return [];
+    }
+  },
+
+  async getSession(sessionId: string): Promise<ChatSession | null> {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching session:', error);
+      return null;
+    }
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_sessions')
+      .delete()
+      .eq('id', sessionId);
+
+    if (error) throw error;
+  },
+
+  async updateSessionName(sessionId: string, newName: string): Promise<void> {
+    const { error } = await supabase
+      .from('chat_sessions')
+      .update({ 
+        session_name: newName,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (error) throw error;
   }
 };
 

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ChatInterface from '../components/chat/ChatInterface';
 import NewChatInterface from '../components/chat/NewChatInterface';
+import ChatHistoryModal from '../components/chat/ChatHistoryModal';
 import EmergencyModal from '../components/chat/EmergencyModal';
 import DoctorReviewModal from '../components/chat/DoctorReviewModal';
 import DoctorSchedulingModal from '../components/appointments/DoctorSchedulingModal';
@@ -33,7 +34,10 @@ function PatientHome({
   onNewChatClick, 
   initialMessage,
   onEmergencyEscalate,
-  onRequestDoctorReview 
+  onRequestDoctorReview,
+  currentSessionId,
+  onSessionChange,
+  onShowChatHistory
 }: {
   showNewChat: boolean;
   onStartNewChat: (message?: string) => void;
@@ -41,6 +45,9 @@ function PatientHome({
   initialMessage: string;
   onEmergencyEscalate: () => void;
   onRequestDoctorReview: () => void;
+  currentSessionId?: string;
+  onSessionChange: (sessionId: string) => void;
+  onShowChatHistory: () => void;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -54,13 +61,22 @@ function PatientHome({
                   Your AI health assistant • Chat, voice messages, and image analysis
                 </p>
               </div>
-              <button
-                onClick={onNewChatClick}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Chat</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={onShowChatHistory}
+                  className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  <span>History</span>
+                </button>
+                <button
+                  onClick={onNewChatClick}
+                  className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Chat</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -71,10 +87,12 @@ function PatientHome({
           <NewChatInterface onStartChat={onStartNewChat} />
         ) : (
           <ChatInterface
-            key={initialMessage} // Force re-render when initialMessage changes
+            key={`${currentSessionId}-${initialMessage}`} // Force re-render when session or initial message changes
             onEmergencyEscalate={onEmergencyEscalate}
             onRequestDoctorReview={onRequestDoctorReview}
             initialMessage={initialMessage}
+            sessionId={currentSessionId}
+            onSessionChange={onSessionChange}
           />
         )}
       </div>
@@ -337,10 +355,12 @@ export default function PatientDashboard() {
   const [currentView, setCurrentView] = useState('chat');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showDoctorReviewModal, setShowDoctorReviewModal] = useState(false);
-  const [showNewChat, setShowNewChat] = useState(true);
+  const [showNewChat, setShowNewChat] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [showMyDoctors, setShowMyDoctors] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string>('');
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [chatKey, setChatKey] = useState(0); // Add key to force re-render
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -369,6 +389,21 @@ export default function PatientDashboard() {
     console.log('PatientDashboard: New chat clicked');
     setShowNewChat(true);
     setInitialMessage('');
+    setCurrentSessionId('');
+    setChatKey(prev => prev + 1);
+  }, []);
+
+  const handleSessionChange = useCallback((sessionId: string) => {
+    console.log('PatientDashboard: Session changed to:', sessionId);
+    setCurrentSessionId(sessionId);
+    setShowNewChat(false);
+  }, []);
+
+  const handleSelectSession = useCallback((sessionId: string) => {
+    console.log('PatientDashboard: Selecting session:', sessionId);
+    setCurrentSessionId(sessionId);
+    setShowNewChat(false);
+    setInitialMessage('');
     setChatKey(prev => prev + 1);
   }, []);
 
@@ -386,7 +421,7 @@ export default function PatientDashboard() {
     setSidebarOpen(false);
     // Reset chat state when navigating away from chat
     if (viewId !== 'chat') {
-      setShowNewChat(true);
+      setShowNewChat(false);
       setInitialMessage('');
       setChatKey(prev => prev + 1);
     }
@@ -404,6 +439,9 @@ export default function PatientDashboard() {
             initialMessage={initialMessage}
             onEmergencyEscalate={() => setShowEmergencyModal(true)}
             onRequestDoctorReview={() => setShowDoctorReviewModal(true)}
+            currentSessionId={currentSessionId}
+            onSessionChange={handleSessionChange}
+            onShowChatHistory={() => setShowChatHistory(true)}
           />
         );
       case 'consultations':
@@ -426,6 +464,9 @@ export default function PatientDashboard() {
             initialMessage={initialMessage}
             onEmergencyEscalate={() => setShowEmergencyModal(true)}
             onRequestDoctorReview={() => setShowDoctorReviewModal(true)}
+            currentSessionId={currentSessionId}
+            onSessionChange={handleSessionChange}
+            onShowChatHistory={() => setShowChatHistory(true)}
           />
         );
     }
@@ -583,6 +624,13 @@ export default function PatientDashboard() {
       <MyDoctorsModal
         isOpen={showMyDoctors}
         onClose={() => setShowMyDoctors(false)}
+      />
+
+      <ChatHistoryModal
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+        onSelectSession={handleSelectSession}
+        currentSessionId={currentSessionId}
       />
     </div>
   );
