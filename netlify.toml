@@ -27,11 +27,19 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Site settings for BuddyDoc
-[context.production]
-  environment = { VITE_APP_NAME = "BuddyDoc" }
-
-# Environment variables for production (these need to be set in Netlify dashboard)
+# Environment variables for production
 [context.production.environment]
+  VITE_APP_NAME = "BuddyDoc"
+  VITE_APP_VERSION = "1.0.0"
+  NODE_ENV = "production"
+
+# Development context
+[context.deploy-preview.environment]
+  VITE_APP_NAME = "BuddyDoc"
+  VITE_APP_VERSION = "1.0.0"
+  NODE_ENV = "development"
+
+# Branch deploys
+[context.branch-deploy.environment]
   VITE_APP_NAME = "BuddyDoc"
   VITE_APP_VERSION = "1.0.0"
