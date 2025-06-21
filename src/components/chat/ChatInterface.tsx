@@ -44,6 +44,7 @@ export default function ChatInterface({
   sessionId,
   onSessionChange 
 }: ChatInterfaceProps) {
+  // Initialize with fresh welcome message - no previous messages
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -73,6 +74,7 @@ export default function ChatInterface({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processedInitialMessage = useRef<string>('');
   const isProcessingInitialMessage = useRef(false);
+  const hasLoadedSession = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,6 +86,22 @@ export default function ChatInterface({
 
   // Load chat session on mount or when sessionId changes
   useEffect(() => {
+    // Reset state when sessionId changes or component mounts
+    if (!sessionId || sessionId !== currentSession?.id) {
+      hasLoadedSession.current = false;
+      processedInitialMessage.current = '';
+      isProcessingInitialMessage.current = false;
+      
+      // Reset to fresh welcome message
+      setMessages([{
+        id: '1',
+        type: 'ai',
+        content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
+        timestamp: new Date()
+      }]);
+      setConversationHistory([]);
+    }
+    
     loadChatSession();
   }, [sessionId]);
 
@@ -95,11 +113,12 @@ export default function ChatInterface({
         // Load specific session
         session = await chatHistoryService.getSession(sessionId);
       } else {
-        // Load current/latest session
-        session = await chatHistoryService.getCurrentSession();
+        // For new chats, don't load any existing session
+        // This ensures we start completely fresh
+        session = null;
       }
 
-      if (session) {
+      if (session && session.messages && session.messages.length > 0) {
         setCurrentSession(session);
         
         // Convert stored messages to component format
@@ -113,52 +132,49 @@ export default function ChatInterface({
           isVoiceMessage: msg.isVoiceMessage
         }));
 
-        // Add welcome message if no stored messages
-        if (storedMessages.length === 0) {
-          setMessages([{
+        // Set messages with welcome message + stored messages
+        setMessages([
+          {
             id: '1',
             type: 'ai',
             content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
             timestamp: new Date()
-          }]);
-        } else {
-          setMessages([
-            {
-              id: '1',
-              type: 'ai',
-              content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
-              timestamp: new Date()
-            },
-            ...storedMessages
-          ]);
+          },
+          ...storedMessages
+        ]);
 
-          // Rebuild conversation history for AI context
-          const history: GeminiMessage[] = [];
-          storedMessages.forEach(msg => {
-            if (msg.type === 'user') {
-              history.push({ role: 'user', parts: msg.content });
-            } else if (msg.type === 'ai') {
-              history.push({ role: 'model', parts: msg.content });
-            }
-          });
-          setConversationHistory(history);
-        }
+        // Rebuild conversation history for AI context
+        const history: GeminiMessage[] = [];
+        storedMessages.forEach(msg => {
+          if (msg.type === 'user') {
+            history.push({ role: 'user', parts: msg.content });
+          } else if (msg.type === 'ai') {
+            history.push({ role: 'model', parts: msg.content });
+          }
+        });
+        setConversationHistory(history);
 
         // Notify parent component of session change
         if (onSessionChange && session.id !== sessionId) {
           onSessionChange(session.id);
         }
-      } else {
-        // Create new session if none exists
+      } else if (!sessionId) {
+        // For new chats without sessionId, create a new session
         const newSession = await chatHistoryService.createNewSession();
         setCurrentSession(newSession);
         if (onSessionChange) {
           onSessionChange(newSession.id);
         }
+      } else {
+        // Session exists but has no messages, use it as is
+        setCurrentSession(session);
       }
+
+      hasLoadedSession.current = true;
     } catch (error) {
       console.error('Error loading chat session:', error);
       // Continue with default messages if loading fails
+      hasLoadedSession.current = true;
     }
   };
 
@@ -328,12 +344,13 @@ export default function ChatInterface({
     }
   }, [conversationHistory, currentSession, isSavingMessage]);
 
-  // Handle initial message - only process once per unique message
+  // Handle initial message - only process once per unique message and after session is loaded
   useEffect(() => {
     if (initialMessage && 
         initialMessage.trim() && 
         processedInitialMessage.current !== initialMessage &&
         !isProcessingInitialMessage.current &&
+        hasLoadedSession.current &&
         currentSession) {
       
       console.log('ChatInterface: Processing initial message:', initialMessage);
@@ -345,7 +362,7 @@ export default function ChatInterface({
         isProcessingInitialMessage.current = false;
       });
     }
-  }, [initialMessage, handleSendMessage, currentSession]);
+  }, [initialMessage, handleSendMessage, currentSession, hasLoadedSession.current]);
 
   const transcribeAudioWithElevenLabs = async (audioBlob: Blob): Promise<string> => {
     try {
@@ -536,10 +553,6 @@ export default function ChatInterface({
     return failedImages.has(imageUrl);
   };
 
-  const isBlobUrl = (url: string) => {
-    return url.startsWith('blob:');
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -627,13 +640,11 @@ export default function ChatInterface({
               }`}>
                 {message.imageUrl && (
                   <div className="mb-2">
-                    {isImageFailed(message.imageUrl) || (isBlobUrl(message.imageUrl) && !message.imageUrl.includes(window.location.origin)) ? (
+                    {isImageFailed(message.imageUrl) ? (
                       <div className="w-full h-32 bg-gray-200 rounded-lg border flex items-center justify-center">
                         <div className="text-center text-gray-500">
                           <ImageOff className="w-8 h-8 mx-auto mb-2" />
-                          <p className="text-xs">
-                            Medical image
-                          </p>
+                          <p className="text-xs">Medical image</p>
                         </div>
                       </div>
                     ) : (

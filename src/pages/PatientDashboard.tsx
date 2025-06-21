@@ -37,7 +37,8 @@ function PatientHome({
   onRequestDoctorReview,
   currentSessionId,
   onSessionChange,
-  onShowChatHistory
+  onShowChatHistory,
+  chatKey
 }: {
   showNewChat: boolean;
   onStartNewChat: (message?: string) => void;
@@ -48,6 +49,7 @@ function PatientHome({
   currentSessionId?: string;
   onSessionChange: (sessionId: string) => void;
   onShowChatHistory: () => void;
+  chatKey: number;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -87,7 +89,7 @@ function PatientHome({
           <NewChatInterface onStartChat={onStartNewChat} />
         ) : (
           <ChatInterface
-            key={`${currentSessionId}-${initialMessage}`} // Force re-render when session or initial message changes
+            key={chatKey} // This ensures a fresh component when starting new chat
             onEmergencyEscalate={onEmergencyEscalate}
             onRequestDoctorReview={onRequestDoctorReview}
             initialMessage={initialMessage}
@@ -373,23 +375,27 @@ export default function PatientDashboard() {
   const handleStartNewChat = useCallback((message?: string) => {
     console.log('PatientDashboard: Starting new chat with message:', message);
     
+    // Clear current session to start fresh
+    setCurrentSessionId('');
+    setShowNewChat(false);
+    
     if (message && message.trim()) {
       setInitialMessage(message);
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1); // Force ChatInterface to re-render
     } else {
-      // Start chat without initial message
       setInitialMessage('');
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1);
     }
+    
+    // Force ChatInterface to re-render with fresh state
+    setChatKey(prev => prev + 1);
   }, []);
 
   const handleNewChatClick = useCallback(() => {
     console.log('PatientDashboard: New chat clicked');
-    setShowNewChat(true);
-    setInitialMessage('');
+    
+    // Clear everything for a completely fresh start
     setCurrentSessionId('');
+    setInitialMessage('');
+    setShowNewChat(true);
     setChatKey(prev => prev + 1);
   }, []);
 
@@ -423,6 +429,7 @@ export default function PatientDashboard() {
     if (viewId !== 'chat') {
       setShowNewChat(false);
       setInitialMessage('');
+      setCurrentSessionId('');
       setChatKey(prev => prev + 1);
     }
   };
@@ -432,7 +439,6 @@ export default function PatientDashboard() {
       case 'chat':
         return (
           <PatientHome 
-            key={chatKey} // Force re-render when chatKey changes
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -442,6 +448,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
       case 'consultations':
@@ -457,7 +464,6 @@ export default function PatientDashboard() {
       default:
         return (
           <PatientHome 
-            key={chatKey}
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -467,6 +473,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
     }
