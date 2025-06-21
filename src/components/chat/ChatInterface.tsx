@@ -72,6 +72,7 @@ export default function ChatInterface({
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processedInitialMessage = useRef<string>('');
+  const isProcessingInitialMessage = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -331,15 +332,20 @@ export default function ChatInterface({
   useEffect(() => {
     if (initialMessage && 
         initialMessage.trim() && 
-        processedInitialMessage.current !== initialMessage) {
+        processedInitialMessage.current !== initialMessage &&
+        !isProcessingInitialMessage.current &&
+        currentSession) {
       
       console.log('ChatInterface: Processing initial message:', initialMessage);
       processedInitialMessage.current = initialMessage;
+      isProcessingInitialMessage.current = true;
       
       // Process the message immediately
-      handleSendMessage(initialMessage);
+      handleSendMessage(initialMessage).finally(() => {
+        isProcessingInitialMessage.current = false;
+      });
     }
-  }, [initialMessage, handleSendMessage]);
+  }, [initialMessage, handleSendMessage, currentSession]);
 
   const transcribeAudioWithElevenLabs = async (audioBlob: Blob): Promise<string> => {
     try {
@@ -626,10 +632,7 @@ export default function ChatInterface({
                         <div className="text-center text-gray-500">
                           <ImageOff className="w-8 h-8 mx-auto mb-2" />
                           <p className="text-xs">
-                            {isBlobUrl(message.imageUrl) 
-                              ? 'Image no longer available (temporary link expired)'
-                              : 'Image failed to load'
-                            }
+                            Medical image
                           </p>
                         </div>
                       </div>

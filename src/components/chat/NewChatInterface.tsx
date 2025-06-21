@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { MessageCircle, Camera, Mic, Send, ArrowRight } from 'lucide-react';
 
 interface NewChatInterfaceProps {
@@ -7,10 +7,17 @@ interface NewChatInterfaceProps {
 
 export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps) {
   const [inputText, setInputText] = useState('');
+  const [isStarting, setIsStarting] = useState(false);
+  const processedQuickStarts = useRef(new Set<string>());
 
   const handleStartChat = () => {
+    if (isStarting) return; // Prevent double execution
+    
     const messageToSend = inputText.trim();
     console.log('NewChatInterface: Starting chat with message:', messageToSend);
+    
+    setIsStarting(true);
+    
     if (messageToSend) {
       onStartChat(messageToSend);
       setInputText('');
@@ -18,6 +25,9 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
       // Start chat without initial message
       onStartChat();
     }
+    
+    // Reset after a short delay
+    setTimeout(() => setIsStarting(false), 1000);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -28,8 +38,27 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
   };
 
   const handleQuickStart = (message: string) => {
+    if (isStarting) return; // Prevent double execution
+    
+    // Create a unique key for this quick start to prevent duplicates
+    const quickStartKey = `${message}-${Date.now()}`;
+    
+    if (processedQuickStarts.current.has(message)) {
+      console.log('Quick start already processed, ignoring:', message);
+      return;
+    }
+    
+    processedQuickStarts.current.add(message);
     console.log('NewChatInterface: Quick start with message:', message);
+    
+    setIsStarting(true);
     onStartChat(message);
+    
+    // Clean up processed quick starts after delay
+    setTimeout(() => {
+      processedQuickStarts.current.delete(message);
+      setIsStarting(false);
+    }, 2000);
   };
 
   const quickStartOptions = [
@@ -126,9 +155,10 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {quickStartOptions.map((option, index) => (
               <button
-                key={index}
+                key={`${option.title}-${index}`}
                 onClick={() => handleQuickStart(option.message)}
-                className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left group"
+                disabled={isStarting}
+                className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-start space-x-3">
                   <span className="text-2xl">{option.icon}</span>
@@ -194,15 +224,21 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors"
               rows={1}
               style={{ minHeight: '48px', maxHeight: '120px' }}
+              disabled={isStarting}
             />
           </div>
           
           <button
             onClick={handleStartChat}
-            className="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center transition-colors"
+            disabled={isStarting}
+            className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl flex items-center justify-center transition-colors"
             title="Start chat"
           >
-            <Send className="w-5 h-5" />
+            {isStarting ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <Send className="w-5 h-5" />
+            )}
           </button>
         </div>
         
