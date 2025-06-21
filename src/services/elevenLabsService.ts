@@ -48,6 +48,16 @@ class ElevenLabsService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('ElevenLabs Speech-to-Text API error:', errorText);
+        
+        // Handle specific error codes
+        if (response.status === 401) {
+          throw new Error('Invalid ElevenLabs API key. Please check your API key configuration.');
+        } else if (response.status === 403) {
+          throw new Error('ElevenLabs API access forbidden. Please check your subscription status.');
+        } else if (response.status === 429) {
+          throw new Error('ElevenLabs API rate limit exceeded. Please try again later.');
+        }
+        
         throw new Error(`ElevenLabs Speech-to-Text API error: ${response.status} ${response.statusText}`);
       }
 
@@ -63,8 +73,12 @@ class ElevenLabsService {
       
       // Fallback error messages based on error type
       if (error instanceof Error) {
-        if (error.message.includes('API key')) {
-          return "Speech-to-text service is not configured. Please type your message instead.";
+        if (error.message.includes('API key') || error.message.includes('401')) {
+          return "Speech-to-text service is not configured properly. Please type your message instead.";
+        } else if (error.message.includes('403')) {
+          return "Speech-to-text service access is restricted. Please type your message instead.";
+        } else if (error.message.includes('429')) {
+          return "Speech-to-text service is temporarily unavailable. Please try again later or type your message.";
         } else if (error.message.includes('No speech detected')) {
           return "I couldn't detect any speech in your recording. Please try speaking more clearly or closer to the microphone.";
         }
@@ -103,6 +117,15 @@ class ElevenLabsService {
       );
 
       if (!response.ok) {
+        // Handle specific error codes
+        if (response.status === 401) {
+          throw new Error('Invalid ElevenLabs API key. Please check your API key configuration.');
+        } else if (response.status === 403) {
+          throw new Error('ElevenLabs API access forbidden. Please check your subscription status.');
+        } else if (response.status === 429) {
+          throw new Error('ElevenLabs API rate limit exceeded. Please try again later.');
+        }
+        
         throw new Error(`ElevenLabs TTS API error: ${response.status} ${response.statusText}`);
       }
 

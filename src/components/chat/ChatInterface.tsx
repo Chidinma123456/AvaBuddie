@@ -310,7 +310,7 @@ export default function ChatInterface({
         { role: 'model', parts: aiResponse }
       ]);
 
-      // Generate AI voice response using ElevenLabs (only if API is configured)
+      // Generate AI voice response using ElevenLabs (only if API is configured and working)
       if (elevenLabsService.isConfigured()) {
         try {
           const audioBuffer = await elevenLabsService.generateSpeech(aiResponse);
@@ -324,6 +324,7 @@ export default function ChatInterface({
         } catch (voiceError) {
           console.error('Error generating AI voice:', voiceError);
           // Continue without voice - the text response is still available
+          // Don't show error to user as voice is optional feature
         }
       }
 
@@ -368,6 +369,11 @@ export default function ChatInterface({
     try {
       setIsTranscribing(true);
       
+      // Check if ElevenLabs is configured before attempting transcription
+      if (!elevenLabsService.isConfigured()) {
+        throw new Error('Speech-to-text service is not configured');
+      }
+      
       // Convert audio blob to the format ElevenLabs expects (WAV or MP3)
       const transcribedText = await elevenLabsService.transcribeAudio(audioBlob);
       
@@ -379,7 +385,7 @@ export default function ChatInterface({
     } catch (error) {
       console.error('Error transcribing audio:', error);
       
-      if (error instanceof Error && error.message.includes('API key')) {
+      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
         return "Speech-to-text service is not available. Please type your message instead.";
       }
       
