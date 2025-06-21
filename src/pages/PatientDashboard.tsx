@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import ChatInterface from '../components/chat/ChatInterface';
 import NewChatInterface from '../components/chat/NewChatInterface';
 import ChatHistoryModal from '../components/chat/ChatHistoryModal';
@@ -500,12 +500,12 @@ export default function PatientDashboard() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
+          <Link to="/" className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg">
               <Heart className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-gray-900">BuddyDoc</span>
-          </div>
+          </Link>
           <button 
             onClick={() => setSidebarOpen(false)}
             className="text-gray-500 hover:text-gray-700"
