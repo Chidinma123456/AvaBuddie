@@ -40,7 +40,6 @@ class GeminiService {
    - Include a short note reinforcing that this does not replace professional medical care.
 6. **When uncertain**: If info is missing, say: "Not enough detail—please mention [missing info]".
 
-
 ${hasImage ? 'The user has shared an image. Acknowledge that you can see it and provide relevant guidance based on visual symptoms.' : ''}
 ${isVoiceMessage ? 'The user sent a voice message. Acknowledge this and respond appropriately to their spoken concerns.' : ''}`;
 
