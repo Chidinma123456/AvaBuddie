@@ -56,7 +56,7 @@ if (supabaseUrl && supabaseAnonKey &&
     },
     global: {
       headers: {
-        'x-client-info': 'buddydoc-web'
+        'x-client-info': 'avabuddie-web'
       },
       fetch: (url, options = {}) => {
         const controller = new AbortController();
@@ -590,32 +590,56 @@ export const patientService = {
       throw new Error('Only patients can request doctors');
     }
 
-    const { data, error } = await supabase
-      .from('patient_doctor_requests')
-      .insert({
-        patient_id: profile.id,
-        doctor_id: doctorId,
-        message
-      })
-      .select()
-      .single();
+    console.log('Creating doctor request:', { patient_id: profile.id, doctor_id: doctorId, message });
 
-    if (error) throw error;
+    try {
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .insert({
+          patient_id: profile.id,
+          doctor_id: doctorId,
+          message
+        })
+        .select()
+        .single();
 
-    // Create notification for doctor (don't await to avoid blocking)
-    Promise.resolve(supabase
-      .from('notifications')
-      .insert({
-        user_id: doctorId,
-        type: 'doctor_request',
-        title: 'New Patient Request',
-        message: `${profile.full_name} has requested you as their doctor.`,
-        data: { request_id: data.id, patient_id: profile.id }
-      }))
-      .then(() => console.log('Notification sent'))
-      .catch((err: any) => console.error('Failed to send notification:', err));
+      if (error) {
+        console.error('Error creating doctor request:', error);
+        throw error;
+      }
 
-    return data;
+      console.log('Doctor request created successfully:', data);
+
+      // The notification will be created automatically by the database trigger
+      // But let's also try to create it manually as a fallback
+      try {
+        const { error: notificationError } = await supabase.rpc('create_notification', {
+          target_user_id: doctorId,
+          notification_type: 'doctor_request',
+          notification_title: 'New Patient Request',
+          notification_message: `${profile.full_name} has requested you as their doctor.`,
+          notification_data: {
+            request_id: data.id,
+            patient_id: profile.id,
+            patient_name: profile.full_name
+          }
+        });
+
+        if (notificationError) {
+          console.error('Error creating notification manually:', notificationError);
+        } else {
+          console.log('Notification created successfully');
+        }
+      } catch (notificationError) {
+        console.error('Failed to create notification:', notificationError);
+        // Don't throw error here as the main request was successful
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in requestDoctor:', error);
+      throw error;
+    }
   },
 
   async getMyDoctors(): Promise<Doctor[]> {
@@ -713,18 +737,22 @@ export const patientService = {
 
     if (error) throw error;
 
-    // Create notification for doctor (don't await)
-    Promise.resolve(supabase
-      .from('notifications')
-      .insert({
-        user_id: doctorId,
-        type: 'report_received',
-        title: 'New Consultation Report',
-        message: `${profile.full_name} has sent you a consultation report.`,
-        data: { report_id: data.id, patient_id: profile.id }
-      }))
-      .then(() => console.log('Notification sent'))
-      .catch((err: any) => console.error('Failed to send notification:', err));
+    // Create notification for doctor using the new function
+    try {
+      await supabase.rpc('create_notification', {
+        target_user_id: doctorId,
+        notification_type: 'report_received',
+        notification_title: 'New Consultation Report',
+        notification_message: `${profile.full_name} has sent you a consultation report.`,
+        notification_data: {
+          report_id: data.id,
+          patient_id: profile.id,
+          patient_name: profile.full_name
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to create report notification:', notificationError);
+    }
 
     return data;
   }
@@ -954,6 +982,23 @@ export const notificationService = {
       .eq('read', false);
 
     if (error) throw error;
+  },
+
+  // Test function to check notifications
+  async testNotificationSystem(): Promise<string> {
+    try {
+      const { data, error } = await supabase.rpc('test_notification_system');
+      
+      if (error) {
+        console.error('Error testing notification system:', error);
+        return `Error: ${error.message}`;
+      }
+      
+      return data || 'Test completed';
+    } catch (error) {
+      console.error('Error in testNotificationSystem:', error);
+      return `Error: ${error}`;
+    }
   }
 };
 
