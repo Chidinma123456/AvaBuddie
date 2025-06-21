@@ -40,9 +40,6 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
   const handleQuickStart = (message: string) => {
     if (isStarting) return; // Prevent double execution
     
-    // Create a unique key for this quick start to prevent duplicates
-    const quickStartKey = `${message}-${Date.now()}`;
-    
     if (processedQuickStarts.current.has(message)) {
       console.log('Quick start already processed, ignoring:', message);
       return;

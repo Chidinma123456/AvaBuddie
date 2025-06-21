@@ -12,8 +12,7 @@ import {
   Loader2,
   Play,
   Pause,
-  Square,
-  ImageOff
+  Square
 } from 'lucide-react';
 import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';

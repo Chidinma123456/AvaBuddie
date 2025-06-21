@@ -281,7 +281,7 @@ export const storageService = {
       console.log('Uploading image to Supabase Storage:', fileName);
 
       // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('chat_images')
         .upload(fileName, file, {
           cacheControl: '3600',
