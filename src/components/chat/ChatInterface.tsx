@@ -82,7 +82,7 @@ export default function ChatInterface({
     loadChatSession();
   }, [sessionId]);
 
-  // Handle initial message processing
+  // Handle initial message processing - wait for session to be ready
   useEffect(() => {
     if (initialMessage && 
         initialMessage.trim() && 
@@ -91,7 +91,11 @@ export default function ChatInterface({
       
       console.log('ChatInterface: Processing initial message:', initialMessage);
       setHasProcessedInitialMessage(true);
-      processInitialMessage(initialMessage);
+      
+      // Add a small delay to ensure the session is fully loaded
+      setTimeout(() => {
+        processInitialMessage(initialMessage);
+      }, 100);
     }
   }, [initialMessage, currentSession, hasProcessedInitialMessage]);
 
@@ -201,6 +205,7 @@ export default function ChatInterface({
       timestamp: new Date()
     };
 
+    // Update messages state immediately to show the user message
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
