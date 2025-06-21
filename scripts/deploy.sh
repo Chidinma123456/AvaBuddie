@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# VirtualDoc Deployment Script
+# AvaBuddie Deployment Script
 
 set -e
 
-echo "🚀 Starting VirtualDoc deployment..."
+echo "🚀 Starting AvaBuddie deployment..."
 
 # Check if environment variables are set
 if [ -z "$VITE_SUPABASE_URL" ]; then
@@ -49,7 +49,7 @@ elif [ "$1" = "vercel" ]; then
     npx vercel --prod
 elif [ "$1" = "docker" ]; then
     echo "🐳 Building Docker image..."
-    docker build -t virtualdoc:latest .
+    docker build -t avabuddie:latest .
     echo "✅ Docker image built successfully!"
 fi
 

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as SupabaseUser, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -104,6 +104,12 @@ if (supabaseUrl && supabaseAnonKey &&
       update: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
       delete: () => Promise.resolve({ error: { message: 'Supabase not configured' } })
     }),
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } })
+      })
+    },
     channel: () => ({
       on: () => ({ subscribe: () => {} })
     }),
@@ -259,6 +265,73 @@ export interface ChatSession {
   updated_at: string;
 }
 
+// Storage Services
+export const storageService = {
+  async uploadImage(file: File, sessionId?: string): Promise<string> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) {
+        throw new Error('User not authenticated');
+      }
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/${sessionId || 'general'}/${Date.now()}.${fileExt}`;
+
+      console.log('Uploading image to Supabase Storage:', fileName);
+
+      // Upload to Supabase Storage
+      const { error } = await supabase.storage
+        .from('chat_images')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        console.error('Storage upload error:', error);
+        throw new Error(`Failed to upload image: ${error.message}`);
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('chat_images')
+        .getPublicUrl(fileName);
+
+      if (!urlData?.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded image');
+      }
+
+      console.log('Image uploaded successfully:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
+  },
+
+  async deleteImage(imageUrl: string): Promise<void> {
+    try {
+      // Extract file path from URL
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/');
+      const fileName = pathParts.slice(-3).join('/'); // Get last 3 parts: userId/sessionId/filename
+
+      const { error } = await supabase.storage
+        .from('chat_images')
+        .remove([fileName]);
+
+      if (error) {
+        console.error('Error deleting image:', error);
+        // Don't throw error for deletion failures to avoid breaking the app
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      // Don't throw error for deletion failures
+    }
+  }
+};
+
 // Profile Services
 export const profileService = {
   async getCurrentProfile(): Promise<Profile | null> {
@@ -371,7 +444,7 @@ export const profileService = {
       
       if (query.trim()) {
         const searchText = query.toLowerCase();
-        filteredData = data?.filter(doctor => {
+        filteredData = data?.filter((doctor: Doctor) => {
           const fullName = doctor.profile?.full_name?.toLowerCase() || '';
           const specialties = doctor.specialties?.join(' ').toLowerCase() || '';
           const clinicName = doctor.clinic_name?.toLowerCase() || '';
@@ -568,7 +641,7 @@ export const patientService = {
         return [];
       }
 
-      const doctorProfileIds = relationships.map(rel => rel.doctor_id);
+      const doctorProfileIds = relationships.map((rel: { doctor_id: string }) => rel.doctor_id);
       console.log('Doctor profile IDs:', doctorProfileIds);
 
       // Now get the doctor records using the profile IDs
@@ -896,7 +969,7 @@ export const subscribeToNotifications = (userId: string, callback: (notification
         table: 'notifications',
         filter: `user_id=eq.${userId}`
       },
-      (payload) => callback(payload.new as Notification)
+      (payload: RealtimePostgresChangesPayload<Notification>) => callback(payload.new as Notification)
     )
     .subscribe();
 };
@@ -912,7 +985,7 @@ export const subscribeToPatientRequests = (doctorId: string, callback: (request:
         table: 'patient_doctor_requests',
         filter: `doctor_id=eq.${doctorId}`
       },
-      (payload) => callback(payload.new as PatientDoctorRequest)
+      (payload: RealtimePostgresChangesPayload<PatientDoctorRequest>) => callback(payload.new as PatientDoctorRequest)
     )
     .subscribe();
 };

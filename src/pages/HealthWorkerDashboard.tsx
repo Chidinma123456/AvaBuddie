@@ -208,7 +208,7 @@ function HealthWorkerHome() {
       {/* Header with Emergency Button */}
       <div className="flex items-center justify-between">
         <div className="bg-gradient-to-r from-teal-600 to-teal-700 rounded-2xl p-8 text-white flex-1 mr-6">
-          <h1 className="text-3xl font-bold mb-2">BuddyDoc Patient Care Dashboard</h1>
+          <h1 className="text-3xl font-bold mb-2">AvaBuddie Patient Care Dashboard</h1>
           <p className="text-teal-100 text-lg">Monitor patient vitals and coordinate care with AI assistance.</p>
         </div>
         

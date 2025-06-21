@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import ChatInterface from '../components/chat/ChatInterface';
 import NewChatInterface from '../components/chat/NewChatInterface';
 import ChatHistoryModal from '../components/chat/ChatHistoryModal';
@@ -37,7 +37,8 @@ function PatientHome({
   onRequestDoctorReview,
   currentSessionId,
   onSessionChange,
-  onShowChatHistory
+  onShowChatHistory,
+  chatKey
 }: {
   showNewChat: boolean;
   onStartNewChat: (message?: string) => void;
@@ -48,6 +49,7 @@ function PatientHome({
   currentSessionId?: string;
   onSessionChange: (sessionId: string) => void;
   onShowChatHistory: () => void;
+  chatKey: number;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -87,7 +89,7 @@ function PatientHome({
           <NewChatInterface onStartChat={onStartNewChat} />
         ) : (
           <ChatInterface
-            key={`${currentSessionId}-${initialMessage}`} // Force re-render when session or initial message changes
+            key={chatKey} // This ensures a fresh component when starting new chat
             onEmergencyEscalate={onEmergencyEscalate}
             onRequestDoctorReview={onRequestDoctorReview}
             initialMessage={initialMessage}
@@ -373,23 +375,27 @@ export default function PatientDashboard() {
   const handleStartNewChat = useCallback((message?: string) => {
     console.log('PatientDashboard: Starting new chat with message:', message);
     
+    // Clear current session to start fresh
+    setCurrentSessionId('');
+    setShowNewChat(false);
+    
     if (message && message.trim()) {
       setInitialMessage(message);
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1); // Force ChatInterface to re-render
     } else {
-      // Start chat without initial message
       setInitialMessage('');
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1);
     }
+    
+    // Force ChatInterface to re-render with fresh state
+    setChatKey(prev => prev + 1);
   }, []);
 
   const handleNewChatClick = useCallback(() => {
     console.log('PatientDashboard: New chat clicked');
-    setShowNewChat(true);
-    setInitialMessage('');
+    
+    // Clear everything for a completely fresh start
     setCurrentSessionId('');
+    setInitialMessage('');
+    setShowNewChat(true);
     setChatKey(prev => prev + 1);
   }, []);
 
@@ -423,6 +429,7 @@ export default function PatientDashboard() {
     if (viewId !== 'chat') {
       setShowNewChat(false);
       setInitialMessage('');
+      setCurrentSessionId('');
       setChatKey(prev => prev + 1);
     }
   };
@@ -432,7 +439,6 @@ export default function PatientDashboard() {
       case 'chat':
         return (
           <PatientHome 
-            key={chatKey} // Force re-render when chatKey changes
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -442,6 +448,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
       case 'consultations':
@@ -457,7 +464,6 @@ export default function PatientDashboard() {
       default:
         return (
           <PatientHome 
-            key={chatKey}
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -467,6 +473,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
     }
@@ -493,12 +500,12 @@ export default function PatientDashboard() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
+          <Link to="/" className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg">
               <Heart className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">BuddyDoc</span>
-          </div>
+            <span className="text-xl font-bold text-gray-900">AvaBuddie</span>
+          </Link>
           <button 
             onClick={() => setSidebarOpen(false)}
             className="text-gray-500 hover:text-gray-700"

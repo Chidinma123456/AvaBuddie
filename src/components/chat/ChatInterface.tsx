@@ -43,6 +43,7 @@ export default function ChatInterface({
   sessionId,
   onSessionChange 
 }: ChatInterfaceProps) {
+  // Initialize with fresh welcome message - no previous messages
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -61,6 +62,7 @@ export default function ChatInterface({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [isSavingMessage, setIsSavingMessage] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -68,6 +70,8 @@ export default function ChatInterface({
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processedInitialMessage = useRef<string>('');
+  const isProcessingInitialMessage = useRef(false);
+  const hasLoadedSession = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,6 +83,22 @@ export default function ChatInterface({
 
   // Load chat session on mount or when sessionId changes
   useEffect(() => {
+    // Reset state when sessionId changes or component mounts
+    if (!sessionId || sessionId !== currentSession?.id) {
+      hasLoadedSession.current = false;
+      processedInitialMessage.current = '';
+      isProcessingInitialMessage.current = false;
+      
+      // Reset to fresh welcome message
+      setMessages([{
+        id: '1',
+        type: 'ai',
+        content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
+        timestamp: new Date()
+      }]);
+      setConversationHistory([]);
+    }
+    
     loadChatSession();
   }, [sessionId]);
 
@@ -90,11 +110,12 @@ export default function ChatInterface({
         // Load specific session
         session = await chatHistoryService.getSession(sessionId);
       } else {
-        // Load current/latest session
-        session = await chatHistoryService.getCurrentSession();
+        // For new chats, don't load any existing session
+        // This ensures we start completely fresh
+        session = null;
       }
 
-      if (session) {
+      if (session && session.messages && session.messages.length > 0) {
         setCurrentSession(session);
         
         // Convert stored messages to component format
@@ -108,52 +129,49 @@ export default function ChatInterface({
           isVoiceMessage: msg.isVoiceMessage
         }));
 
-        // Add welcome message if no stored messages
-        if (storedMessages.length === 0) {
-          setMessages([{
+        // Set messages with welcome message + stored messages
+        setMessages([
+          {
             id: '1',
             type: 'ai',
             content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
             timestamp: new Date()
-          }]);
-        } else {
-          setMessages([
-            {
-              id: '1',
-              type: 'ai',
-              content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
-              timestamp: new Date()
-            },
-            ...storedMessages
-          ]);
+          },
+          ...storedMessages
+        ]);
 
-          // Rebuild conversation history for AI context
-          const history: GeminiMessage[] = [];
-          storedMessages.forEach(msg => {
-            if (msg.type === 'user') {
-              history.push({ role: 'user', parts: msg.content });
-            } else if (msg.type === 'ai') {
-              history.push({ role: 'model', parts: msg.content });
-            }
-          });
-          setConversationHistory(history);
-        }
+        // Rebuild conversation history for AI context
+        const history: GeminiMessage[] = [];
+        storedMessages.forEach(msg => {
+          if (msg.type === 'user') {
+            history.push({ role: 'user', parts: msg.content });
+          } else if (msg.type === 'ai') {
+            history.push({ role: 'model', parts: msg.content });
+          }
+        });
+        setConversationHistory(history);
 
         // Notify parent component of session change
         if (onSessionChange && session.id !== sessionId) {
           onSessionChange(session.id);
         }
-      } else {
-        // Create new session if none exists
+      } else if (!sessionId) {
+        // For new chats without sessionId, create a new session
         const newSession = await chatHistoryService.createNewSession();
         setCurrentSession(newSession);
         if (onSessionChange) {
           onSessionChange(newSession.id);
         }
+      } else {
+        // Session exists but has no messages, use it as is
+        setCurrentSession(session);
       }
+
+      hasLoadedSession.current = true;
     } catch (error) {
       console.error('Error loading chat session:', error);
       // Continue with default messages if loading fails
+      hasLoadedSession.current = true;
     }
   };
 
@@ -182,8 +200,8 @@ export default function ChatInterface({
     }
   };
 
-  const handleSendMessage = useCallback(async (content: string, audioUrl?: string, imageUrl?: string, isVoiceMessage = false) => {
-    if (!content.trim() && !audioUrl && !imageUrl) return;
+  const handleSendMessage = useCallback(async (content: string, audioUrl?: string, imageBase64?: string, isVoiceMessage = false) => {
+    if (!content.trim() && !audioUrl && !imageBase64) return;
 
     console.log('ChatInterface: Sending message:', content);
 
@@ -193,7 +211,7 @@ export default function ChatInterface({
       content: content || (isVoiceMessage ? 'Voice message' : 'Image uploaded'),
       timestamp: new Date(),
       audioUrl,
-      imageUrl,
+      imageUrl: imageBase64 ? 'data:image/jpeg;base64,' + imageBase64 : undefined,
       isVoiceMessage
     };
 
@@ -201,31 +219,37 @@ export default function ChatInterface({
     setInputText(''); // Clear input immediately after adding to messages
     setIsLoading(true);
 
-    // Save user message to history
-    await saveMessageToHistory(userMessage);
+    // Save user message to history (without the base64 image data to save space)
+    const messageToSave = { ...userMessage };
+    if (imageBase64) {
+      messageToSave.imageUrl = 'Medical image analyzed'; // Just save a placeholder
+    }
+    await saveMessageToHistory(messageToSave);
 
     try {
       let aiResponse: string;
 
-      if (imageUrl) {
-        // Convert image to base64 for Gemini Vision API
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64String = reader.result as string;
-            resolve(base64String.split(',')[1]); // Remove data:image/jpeg;base64, prefix
-          };
-          reader.readAsDataURL(blob);
-        });
-
-        aiResponse = await geminiService.analyzeImage(base64, content);
+      if (imageBase64) {
+        // Use base64 directly for Gemini Vision API
+        try {
+          setIsProcessingImage(true);
+          console.log('Processing image for AI analysis...');
+          
+          aiResponse = await geminiService.analyzeImage(imageBase64, content || 'Please analyze this medical image and provide insights.');
+          
+        } catch (imageError) {
+          console.error('Error processing image:', imageError);
+          aiResponse = `I can see that you've uploaded an image, but I'm having trouble analyzing it right now. ${
+            imageError instanceof Error ? imageError.message : 'Please try uploading the image again or describe your symptoms in text.'
+          } For any concerning visual symptoms, please consult with a healthcare professional who can properly examine the area.`;
+        } finally {
+          setIsProcessingImage(false);
+        }
       } else {
         aiResponse = await geminiService.generateResponse(
           content, 
           conversationHistory, 
-          !!imageUrl, 
+          !!imageBase64, 
           isVoiceMessage
         );
       }
@@ -249,7 +273,7 @@ export default function ChatInterface({
         { role: 'model', parts: aiResponse }
       ]);
 
-      // Generate AI voice response using ElevenLabs (only if API is configured)
+      // Generate AI voice response using ElevenLabs (only if API is configured and working)
       if (elevenLabsService.isConfigured()) {
         try {
           const audioBuffer = await elevenLabsService.generateSpeech(aiResponse);
@@ -263,6 +287,7 @@ export default function ChatInterface({
         } catch (voiceError) {
           console.error('Error generating AI voice:', voiceError);
           // Continue without voice - the text response is still available
+          // Don't show error to user as voice is optional feature
         }
       }
 
@@ -283,23 +308,34 @@ export default function ChatInterface({
     }
   }, [conversationHistory, currentSession, isSavingMessage]);
 
-  // Handle initial message - only process once per unique message
+  // Handle initial message - only process once per unique message and after session is loaded
   useEffect(() => {
     if (initialMessage && 
         initialMessage.trim() && 
-        processedInitialMessage.current !== initialMessage) {
+        processedInitialMessage.current !== initialMessage &&
+        !isProcessingInitialMessage.current &&
+        hasLoadedSession.current &&
+        currentSession) {
       
       console.log('ChatInterface: Processing initial message:', initialMessage);
       processedInitialMessage.current = initialMessage;
+      isProcessingInitialMessage.current = true;
       
       // Process the message immediately
-      handleSendMessage(initialMessage);
+      handleSendMessage(initialMessage).finally(() => {
+        isProcessingInitialMessage.current = false;
+      });
     }
-  }, [initialMessage, handleSendMessage]);
+  }, [initialMessage, handleSendMessage, currentSession, hasLoadedSession.current]);
 
   const transcribeAudioWithElevenLabs = async (audioBlob: Blob): Promise<string> => {
     try {
       setIsTranscribing(true);
+      
+      // Check if ElevenLabs is configured before attempting transcription
+      if (!elevenLabsService.isConfigured()) {
+        throw new Error('Speech-to-text service is not configured');
+      }
       
       // Convert audio blob to the format ElevenLabs expects (WAV or MP3)
       const transcribedText = await elevenLabsService.transcribeAudio(audioBlob);
@@ -312,7 +348,7 @@ export default function ChatInterface({
     } catch (error) {
       console.error('Error transcribing audio:', error);
       
-      if (error instanceof Error && error.message.includes('API key')) {
+      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
         return "Speech-to-text service is not available. Please type your message instead.";
       }
       
@@ -417,15 +453,57 @@ export default function ChatInterface({
     }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      handleSendMessage('Please analyze this image and provide medical insights.', undefined, imageUrl);
-    }
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    if (!file) return;
+
+    try {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file (JPEG, PNG, GIF, etc.)');
+        return;
+      }
+
+      // Validate file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image file is too large. Please select an image smaller than 10MB.');
+        return;
+      }
+
+      console.log('Processing uploaded image:', file.name, file.type, file.size);
+
+      // Convert image to base64 for Gemini
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          if (result) {
+            // Remove data:image/jpeg;base64, prefix
+            const base64String = result.split(',')[1];
+            if (base64String) {
+              resolve(base64String);
+            } else {
+              reject(new Error('Failed to extract base64 data from image'));
+            }
+          } else {
+            reject(new Error('Failed to read image file'));
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read image file'));
+        reader.readAsDataURL(file);
+      });
+      
+      // Send message with base64 image data
+      await handleSendMessage('Please analyze this image and provide medical insights.', undefined, base64);
+      
+    } catch (error) {
+      console.error('Error handling image upload:', error);
+      alert(`Failed to process the image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -530,11 +608,22 @@ export default function ChatInterface({
                   : 'bg-gray-100 text-gray-900'
               }`}>
                 {message.imageUrl && (
-                  <img 
-                    src={message.imageUrl} 
-                    alt="Uploaded" 
-                    className="w-full h-32 object-cover rounded-lg mb-2"
-                  />
+                  <div className="mb-2">
+                    <img 
+                      src={message.imageUrl} 
+                      alt="Medical image" 
+                      className="w-full h-32 object-cover rounded-lg border"
+                      onError={(e) => {
+                        // If image fails to load, show placeholder
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'w-full h-32 bg-gray-200 rounded-lg border flex items-center justify-center';
+                        placeholder.innerHTML = '<div class="text-center text-gray-500"><svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><p class="text-xs">Medical image</p></div>';
+                        target.parentNode?.insertBefore(placeholder, target);
+                      }}
+                    />
+                  </div>
                 )}
                 
                 {message.audioUrl && (
@@ -588,7 +677,7 @@ export default function ChatInterface({
           </div>
         ))}
         
-        {(isLoading || isTranscribing) && (
+        {(isLoading || isTranscribing || isProcessingImage) && (
           <div className="flex justify-start">
             <div className="flex items-start space-x-3 max-w-xs lg:max-w-md">
               <div className="w-8 h-8 rounded-full bg-white border-2 border-blue-200 overflow-hidden flex items-center justify-center">
@@ -602,7 +691,9 @@ export default function ChatInterface({
                 <div className="flex items-center space-x-2">
                   <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
                   <span className="text-sm text-gray-600">
-                    {isTranscribing ? 'Converting speech to text...' : 'Dr. Ava is analyzing...'}
+                    {isTranscribing ? 'Converting speech to text...' : 
+                     isProcessingImage ? 'Analyzing image...' : 
+                     'Dr. Ava is analyzing...'}
                   </span>
                 </div>
               </div>
@@ -645,7 +736,7 @@ export default function ChatInterface({
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors"
                 rows={1}
                 style={{ minHeight: '48px', maxHeight: '120px' }}
-                disabled={isRecording || isLoading || isTranscribing}
+                disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
               />
             </div>
           </div>
@@ -661,8 +752,8 @@ export default function ChatInterface({
             
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center transition-colors"
-              disabled={isRecording || isLoading || isTranscribing}
+              className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isRecording || isLoading || isTranscribing || isProcessingImage}
               title="Upload medical image"
             >
               <Camera className="w-5 h-5" />
@@ -675,7 +766,7 @@ export default function ChatInterface({
                   ? 'bg-red-600 hover:bg-red-700 text-white' 
                   : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
               }`}
-              disabled={isLoading || isTranscribing}
+              disabled={isLoading || isTranscribing || isProcessingImage}
               title={isRecording ? 'Stop recording' : 'Record voice message'}
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -683,7 +774,7 @@ export default function ChatInterface({
             
             <button
               onClick={handleSendClick}
-              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing}
+              disabled={!inputText.trim() || isRecording || isLoading || isTranscribing || isProcessingImage}
               className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl flex items-center justify-center transition-colors"
               title="Send message"
             >

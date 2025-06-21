@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, Loader2, AlertCircle } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { tavusService } from '../../services/tavusService';
 
 interface TavusVideoConsultationProps {
@@ -16,6 +16,9 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [conversationUrl, setConversationUrl] = useState<string | null>(null);
   const [hasUserMedia, setHasUserMedia] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [isUsingMockMode, setIsUsingMockMode] = useState(false);
+  const [showExternalLink, setShowExternalLink] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,9 +28,12 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     return () => {
       // Cleanup on unmount
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log('Stopped track:', track.kind);
+        });
       }
-      if (conversationId) {
+      if (conversationId && !conversationId.startsWith('mock_') && !conversationId.startsWith('fallback_')) {
         tavusService.endConversation(conversationId);
       }
     };
@@ -36,36 +42,93 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
   const setupUserMedia = async () => {
     try {
       console.log('Requesting user media...');
+      setMediaError(null);
+      
+      // Check if browser supports getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Your browser does not support camera and microphone access. Please use a modern browser like Chrome, Firefox, or Safari.');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 60 }
         },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100
         }
       });
       
-      console.log('User media obtained:', stream);
+      console.log('User media obtained successfully:', {
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        videoTrack: stream.getVideoTracks()[0]?.getSettings(),
+        audioTrack: stream.getAudioTracks()[0]?.getSettings()
+      });
+      
       streamRef.current = stream;
       setHasUserMedia(true);
       
       // Set up video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        // Add event listeners for video element
         videoRef.current.onloadedmetadata = () => {
-          console.log('Video metadata loaded, playing video...');
-          videoRef.current?.play().catch(e => console.error('Error playing video:', e));
+          console.log('Video metadata loaded, dimensions:', {
+            videoWidth: videoRef.current?.videoWidth,
+            videoHeight: videoRef.current?.videoHeight
+          });
+          if (videoRef.current) {
+            videoRef.current.play().catch(e => {
+              console.error('Error playing video:', e);
+              setMediaError('Failed to start video playback');
+            });
+          }
         };
+
+        videoRef.current.oncanplay = () => {
+          console.log('Video can play');
+        };
+
+        videoRef.current.onerror = (e) => {
+          console.error('Video element error:', e);
+          setMediaError('Video playback error');
+        };
+
+        // Force load the video
+        videoRef.current.load();
       }
 
       return stream;
     } catch (err) {
       console.error('Error accessing user media:', err);
-      throw new Error('Unable to access camera and microphone. Please check your permissions and try again.');
+      
+      let errorMessage = 'Unable to access camera and microphone.';
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = 'Camera and microphone access denied. Please allow access in your browser settings and try again.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera or microphone found. Please connect a camera and microphone and try again.';
+        } else if (err.name === 'NotReadableError') {
+          errorMessage = 'Camera or microphone is already in use by another application. Please close other applications and try again.';
+        } else if (err.name === 'OverconstrainedError') {
+          errorMessage = 'Camera or microphone does not meet the required specifications. Please try with different settings.';
+        } else if (err.name === 'SecurityError') {
+          errorMessage = 'Camera and microphone access blocked due to security restrictions. Please check your browser settings.';
+        } else {
+          errorMessage = err.message || errorMessage;
+        }
+      }
+      
+      setMediaError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -73,10 +136,21 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setError(null);
+    setMediaError(null);
 
     try {
       // First, get user media
       await setupUserMedia();
+
+      // Check if Tavus is properly configured
+      const configStatus = tavusService.getConfigurationStatus();
+      console.log('Tavus configuration status:', configStatus);
+      
+      if (!tavusService.isConfigured()) {
+        console.warn('Tavus not configured, using mock mode');
+        setIsUsingMockMode(true);
+        setError('Tavus API not configured. Using demo mode - video consultation features are limited.');
+      }
 
       // Create Tavus conversation
       console.log('Creating Tavus conversation...');
@@ -87,14 +161,29 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
       
       if (conversation.conversation_url) {
         setConversationUrl(conversation.conversation_url);
+        console.log('Conversation URL set:', conversation.conversation_url);
+        
+        // Check if URL is accessible (for CORS issues)
+        if (conversation.conversation_url.includes('tavus') || conversation.conversation_url.includes('daily.co')) {
+          setShowExternalLink(true);
+        }
       }
 
-      // Add initial medical context to the conversation
-      if (conversation.conversation_id) {
-        await tavusService.updateConversationContext(
+      // Try to add initial medical context to the conversation (non-blocking)
+      if (conversation.conversation_id && tavusService.isConfigured()) {
+        // Make this call non-blocking
+        tavusService.updateConversationContext(
           conversation.conversation_id,
           'Patient has initiated a video consultation for medical guidance and health assessment.'
-        );
+        ).then((success) => {
+          if (success) {
+            console.log('Conversation context updated successfully');
+          } else {
+            console.log('Conversation context update failed, using default configuration');
+          }
+        }).catch((err) => {
+          console.log('Conversation context update error (non-blocking):', err.message);
+        });
       }
       
       // Simulate connection process
@@ -102,18 +191,35 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
         setIsConnecting(false);
         setIsConnected(true);
         setConnectionStatus('connected');
+        console.log('Video consultation started successfully');
       }, 3000);
 
     } catch (err) {
       console.error('Error starting consultation:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start video consultation. Please try again.');
+      let errorMessage = 'Failed to start video consultation. Please try again.';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('API key')) {
+          errorMessage = 'Tavus API key not configured. Please check your environment variables.';
+        } else if (err.message.includes('persona')) {
+          errorMessage = 'Dr. Ava persona not found. Please check your Tavus configuration.';
+        } else if (err.message.includes('permissions') || err.message.includes('access')) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
       setIsConnecting(false);
       setConnectionStatus('error');
     }
   };
 
   const endConsultation = async () => {
-    if (conversationId) {
+    console.log('Ending consultation...');
+    
+    if (conversationId && !conversationId.startsWith('mock_') && !conversationId.startsWith('fallback_')) {
       await tavusService.endConversation(conversationId);
     }
     
@@ -128,6 +234,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     setIsConnected(false);
     setConnectionStatus('idle');
     setHasUserMedia(false);
+    setMediaError(null);
     onClose();
   };
 
@@ -135,7 +242,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     if (streamRef.current) {
       const audioTracks = streamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
-        track.enabled = !isMuted;
+        track.enabled = isMuted; // If currently muted, enable; if not muted, disable
         console.log(`Audio track ${isMuted ? 'enabled' : 'disabled'}`);
       });
       setIsMuted(!isMuted);
@@ -146,10 +253,16 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
     if (streamRef.current) {
       const videoTracks = streamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
-        track.enabled = isVideoEnabled;
-        console.log(`Video track ${isVideoEnabled ? 'disabled' : 'enabled'}`);
+        track.enabled = !isVideoEnabled; // Toggle the enabled state
+        console.log(`Video track ${!isVideoEnabled ? 'enabled' : 'disabled'}`);
       });
       setIsVideoEnabled(!isVideoEnabled);
+    }
+  };
+
+  const openExternalConsultation = () => {
+    if (conversationUrl) {
+      window.open(conversationUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     }
   };
 
@@ -174,6 +287,7 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   {connectionStatus === 'connected' && 'Connected - Ready for consultation'}
                   {connectionStatus === 'idle' && 'Ready to connect'}
                   {connectionStatus === 'error' && 'Connection failed'}
+                  {isUsingMockMode && ' (Demo Mode)'}
                 </p>
               </div>
             </div>
@@ -210,7 +324,6 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 <h3 className="text-3xl font-bold text-white mb-4">Start AI Video Consultation</h3>
                 <p className="text-white/70 mb-6 text-lg leading-relaxed">
                   Connect with Dr. Ava, your AI-powered virtual doctor, for personalized medical consultation. 
-                  Dr. Ava is trained in medical knowledge and will provide professional guidance for your health concerns.
                 </p>
                 
                 <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-6 mb-8">
@@ -235,11 +348,11 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                   </div>
                 </div>
 
-                {error && (
+                {(error || mediaError) && (
                   <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-6 max-w-md mx-auto">
                     <div className="flex items-center space-x-2 text-red-400">
                       <AlertCircle className="w-5 h-5" />
-                      <span className="text-sm">{error}</span>
+                      <span className="text-sm">{error || mediaError}</span>
                     </div>
                   </div>
                 )}
@@ -267,8 +380,8 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 <h3 className="text-2xl font-semibold text-white mb-4">Connecting to Dr. Ava...</h3>
                 <div className="space-y-2 text-white/70">
                   <p>• {hasUserMedia ? '✓' : '○'} Camera and microphone access</p>
-                  <p>• Initializing AI medical assistant</p>
-                  <p>• Setting up secure video connection</p>
+                  <p>• {conversationId ? '✓' : '○'} Initializing AI medical assistant</p>
+                  <p>• {conversationUrl ? '✓' : '○'} Setting up secure video connection</p>
                   <p>• Loading medical knowledge base</p>
                 </div>
                 <div className="mt-6 bg-blue-600/20 border border-blue-500/30 rounded-lg p-4 max-w-md mx-auto">
@@ -284,14 +397,33 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
               {/* AI Doctor Video */}
               <div className="bg-gray-800 rounded-xl overflow-hidden relative">
-                {conversationUrl && !conversationUrl.includes('mock') ? (
-                  <iframe
-                    ref={iframeRef}
-                    src={conversationUrl}
-                    className="w-full h-full"
-                    allow="camera; microphone"
-                    title="Dr. Ava Video Consultation"
-                  />
+                {conversationUrl && 
+                 !conversationUrl.includes('mock-tavus-conversation') && 
+                 tavusService.isConfigured() && 
+                 !showExternalLink ? (
+                  <>
+                    <iframe
+                      ref={iframeRef}
+                      src={conversationUrl}
+                      className="w-full h-full"
+                      allow="camera; microphone"
+                      title="Dr. Ava Video Consultation"
+                      onError={() => {
+                        console.log('Iframe failed to load, showing external link option');
+                        setShowExternalLink(true);
+                      }}
+                    />
+                    {/* Fallback for iframe loading issues */}
+                    <div className="absolute inset-0 bg-gray-800 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={openExternalConsultation}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Open in New Window</span>
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-blue-600 to-teal-600 flex items-center justify-center h-full">
                     <div className="text-center text-white">
@@ -306,14 +438,26 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                       </div>
                       <h4 className="text-xl font-semibold mb-2">Dr. Ava</h4>
                       <p className="text-sm opacity-80 mb-4">AI Medical Assistant</p>
-                      <div className="bg-white/20 rounded-lg p-3 max-w-xs mx-auto">
+                      <div className="bg-white/20 rounded-lg p-3 max-w-xs mx-auto mb-4">
                         <p className="text-xs">
                           "Hello! I'm ready to help with your health concerns. Please tell me what's bothering you today."
                         </p>
                       </div>
-                      {conversationUrl?.includes('mock') && (
+                      
+                      {/* Show external link option if iframe fails or CORS issues */}
+                      {conversationUrl && showExternalLink && tavusService.isConfigured() && (
+                        <button
+                          onClick={openExternalConsultation}
+                          className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Open Video Consultation</span>
+                        </button>
+                      )}
+                      
+                      {!tavusService.isConfigured() && (
                         <div className="mt-4 text-xs opacity-60">
-                          Demo Mode - Using mock AI response
+                          Demo Mode - Tavus API not configured
                         </div>
                       )}
                     </div>
@@ -329,14 +473,14 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
 
               {/* Patient Video */}
               <div className="bg-gray-800 rounded-xl overflow-hidden relative">
-                {hasUserMedia ? (
+                {hasUserMedia && !mediaError ? (
                   <>
                     <video
                       ref={videoRef}
                       autoPlay
                       muted
                       playsInline
-                      className={`w-full h-full object-cover transform scale-x-[-1] ${!isVideoEnabled ? 'hidden' : ''}`}
+                      className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
                       style={{ transform: 'scaleX(-1)' }} // Mirror the video
                     />
                     {!isVideoEnabled && (
@@ -353,7 +497,9 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                     <div className="text-center text-white">
                       <AlertCircle className="w-12 h-12 text-yellow-400 mx-auto mb-2" />
                       <p className="text-sm">Camera not available</p>
-                      <p className="text-xs text-gray-400 mt-1">Check permissions</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {mediaError || 'Check permissions'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -404,6 +550,17 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
                 )}
               </button>
 
+              {/* External Link Button */}
+              {conversationUrl && showExternalLink && tavusService.isConfigured() && (
+                <button
+                  onClick={openExternalConsultation}
+                  className="w-14 h-14 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-blue-500/25"
+                  title="Open consultation in new window"
+                >
+                  <ExternalLink className="w-6 h-6 text-white" />
+                </button>
+              )}
+
               <button
                 onClick={endConsultation}
                 className="w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-red-500/25"
@@ -420,9 +577,24 @@ export default function TavusVideoConsultation({ onClose }: TavusVideoConsultati
               <p className="text-white/50 text-xs">
                 Dr. Ava is an AI assistant. For emergencies, please contact emergency services immediately.
               </p>
-              {hasUserMedia && (
+              {hasUserMedia && !mediaError && (
                 <p className="text-green-400/70 text-xs mt-1">
                   ✓ Camera and microphone connected
+                </p>
+              )}
+              {mediaError && (
+                <p className="text-red-400/70 text-xs mt-1">
+                  ⚠ {mediaError}
+                </p>
+              )}
+              {showExternalLink && conversationUrl && tavusService.isConfigured() && (
+                <p className="text-blue-400/70 text-xs mt-1">
+                  💡 If video doesn't load, click the external link button to open in a new window
+                </p>
+              )}
+              {isUsingMockMode && (
+                <p className="text-yellow-400/70 text-xs mt-1">
+                  ⚠ Demo mode - Limited functionality without Tavus API
                 </p>
               )}
             </div>

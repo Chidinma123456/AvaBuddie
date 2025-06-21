@@ -174,7 +174,7 @@ function DoctorHome({
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-6 lg:p-8 text-white">
-        <h1 className="text-2xl lg:text-3xl font-bold mb-2">BuddyDoc Doctor Dashboard</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold mb-2">AvaBuddie Doctor Dashboard</h1>
         <p className="text-green-100 text-base lg:text-lg">Manage patient cases and consultations with comprehensive tools.</p>
       </div>
 
@@ -675,7 +675,7 @@ export default function DoctorDashboard() {
               <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg">
                 <Heart className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">BuddyDoc</span>
+              <span className="text-xl font-bold text-gray-900">AvaBuddie</span>
             </div>
             <button 
               onClick={() => setSidebarOpen(false)}
