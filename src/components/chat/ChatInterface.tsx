@@ -283,6 +283,86 @@ export default function ChatInterface({
     }
   }, [conversationHistory, currentSession, isSavingMessage]);
 
+  // Process initial message from templates
+  const processInitialMessage = useCallback(async (message: string) => {
+    console.log('ChatInterface: Processing initial message:', message);
+    
+    // Add the user message to the chat first
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    // Save user message to history
+    await saveMessageToHistory(userMessage);
+
+    try {
+      // Get AI response
+      const aiResponse = await geminiService.generateResponse(
+        message, 
+        conversationHistory, 
+        false, 
+        false
+      );
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: aiResponse,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Save AI message to history
+      await saveMessageToHistory(aiMessage);
+
+      // Update conversation history for context
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', parts: message },
+        { role: 'model', parts: aiResponse }
+      ]);
+
+      // Generate AI voice response using ElevenLabs (only if API is configured)
+      if (elevenLabsService.isConfigured()) {
+        try {
+          const audioBuffer = await elevenLabsService.generateSpeech(aiResponse);
+          const aiAudioUrl = elevenLabsService.createAudioUrl(audioBuffer);
+          
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id 
+              ? { ...msg, audioUrl: aiAudioUrl }
+              : msg
+          ));
+        } catch (voiceError) {
+          console.error('Error generating AI voice:', voiceError);
+          // Continue without voice - the text response is still available
+        }
+      }
+
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: "I apologize, but I'm experiencing technical difficulties right now. For immediate medical concerns, please contact your healthcare provider or emergency services. I'll be back to assist you shortly.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+      await saveMessageToHistory(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [conversationHistory, currentSession, isSavingMessage, saveMessageToHistory]);
+
   // Handle initial message - only process once per unique message
   useEffect(() => {
     if (initialMessage && 
@@ -292,22 +372,10 @@ export default function ChatInterface({
       console.log('ChatInterface: Processing initial message:', initialMessage);
       processedInitialMessage.current = initialMessage;
       
-      // Add the user message to the chat first, then process it
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        type: 'user',
-        content: initialMessage,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-      
-      // Then process the message to get AI response
-      setTimeout(() => {
-        handleSendMessage(initialMessage);
-      }, 100); // Small delay to ensure the user message is rendered first
+      // Process the initial message
+      processInitialMessage(initialMessage);
     }
-  }, [initialMessage, handleSendMessage]);
+  }, [initialMessage, processInitialMessage]);
 
   const transcribeAudioWithElevenLabs = async (audioBlob: Blob): Promise<string> => {
     try {
