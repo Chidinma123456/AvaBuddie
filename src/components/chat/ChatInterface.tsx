@@ -61,13 +61,13 @@ export default function ChatInterface({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [isSavingMessage, setIsSavingMessage] = useState(false);
+  const [hasProcessedInitialMessage, setHasProcessedInitialMessage] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const processedInitialMessage = useRef<string>('');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -82,6 +82,19 @@ export default function ChatInterface({
     loadChatSession();
   }, [sessionId]);
 
+  // Handle initial message processing
+  useEffect(() => {
+    if (initialMessage && 
+        initialMessage.trim() && 
+        !hasProcessedInitialMessage &&
+        currentSession) {
+      
+      console.log('ChatInterface: Processing initial message:', initialMessage);
+      setHasProcessedInitialMessage(true);
+      processInitialMessage(initialMessage);
+    }
+  }, [initialMessage, currentSession, hasProcessedInitialMessage]);
+
   const loadChatSession = async () => {
     try {
       let session: ChatSession | null = null;
@@ -90,8 +103,8 @@ export default function ChatInterface({
         // Load specific session
         session = await chatHistoryService.getSession(sessionId);
       } else {
-        // Load current/latest session
-        session = await chatHistoryService.getCurrentSession();
+        // For new chats, create a new session immediately
+        session = await chatHistoryService.createNewSession();
       }
 
       if (session) {
@@ -116,6 +129,7 @@ export default function ChatInterface({
             content: "Hello! I'm Dr. Ava, your AI health assistant. How can I help you today? You can type your message, record a voice note, or upload an image of any symptoms you'd like me to analyze.",
             timestamp: new Date()
           }]);
+          setConversationHistory([]);
         } else {
           setMessages([
             {
@@ -142,13 +156,6 @@ export default function ChatInterface({
         // Notify parent component of session change
         if (onSessionChange && session.id !== sessionId) {
           onSessionChange(session.id);
-        }
-      } else {
-        // Create new session if none exists
-        const newSession = await chatHistoryService.createNewSession();
-        setCurrentSession(newSession);
-        if (onSessionChange) {
-          onSessionChange(newSession.id);
         }
       }
     } catch (error) {
@@ -181,6 +188,86 @@ export default function ChatInterface({
       setIsSavingMessage(false);
     }
   };
+
+  // Process initial message from templates
+  const processInitialMessage = useCallback(async (message: string) => {
+    console.log('ChatInterface: Processing initial message:', message);
+    
+    // Add the user message to the chat first
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    // Save user message to history
+    await saveMessageToHistory(userMessage);
+
+    try {
+      // Get AI response
+      const aiResponse = await geminiService.generateResponse(
+        message, 
+        conversationHistory, 
+        false, 
+        false
+      );
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: aiResponse,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Save AI message to history
+      await saveMessageToHistory(aiMessage);
+
+      // Update conversation history for context
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', parts: message },
+        { role: 'model', parts: aiResponse }
+      ]);
+
+      // Generate AI voice response using ElevenLabs (only if API is configured)
+      if (elevenLabsService.isConfigured()) {
+        try {
+          const audioBuffer = await elevenLabsService.generateSpeech(aiResponse);
+          const aiAudioUrl = elevenLabsService.createAudioUrl(audioBuffer);
+          
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id 
+              ? { ...msg, audioUrl: aiAudioUrl }
+              : msg
+          ));
+        } catch (voiceError) {
+          console.error('Error generating AI voice:', voiceError);
+          // Continue without voice - the text response is still available
+        }
+      }
+
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: "I apologize, but I'm experiencing technical difficulties right now. For immediate medical concerns, please contact your healthcare provider or emergency services. I'll be back to assist you shortly.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+      await saveMessageToHistory(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [conversationHistory, currentSession, isSavingMessage]);
 
   const handleSendMessage = useCallback(async (content: string, audioUrl?: string, imageUrl?: string, isVoiceMessage = false) => {
     if (!content.trim() && !audioUrl && !imageUrl) return;
@@ -282,100 +369,6 @@ export default function ChatInterface({
       setIsLoading(false);
     }
   }, [conversationHistory, currentSession, isSavingMessage]);
-
-  // Process initial message from templates
-  const processInitialMessage = useCallback(async (message: string) => {
-    console.log('ChatInterface: Processing initial message:', message);
-    
-    // Add the user message to the chat first
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: message,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-
-    // Save user message to history
-    await saveMessageToHistory(userMessage);
-
-    try {
-      // Get AI response
-      const aiResponse = await geminiService.generateResponse(
-        message, 
-        conversationHistory, 
-        false, 
-        false
-      );
-
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: aiResponse,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Save AI message to history
-      await saveMessageToHistory(aiMessage);
-
-      // Update conversation history for context
-      setConversationHistory(prev => [
-        ...prev,
-        { role: 'user', parts: message },
-        { role: 'model', parts: aiResponse }
-      ]);
-
-      // Generate AI voice response using ElevenLabs (only if API is configured)
-      if (elevenLabsService.isConfigured()) {
-        try {
-          const audioBuffer = await elevenLabsService.generateSpeech(aiResponse);
-          const aiAudioUrl = elevenLabsService.createAudioUrl(audioBuffer);
-          
-          setMessages(prev => prev.map(msg => 
-            msg.id === aiMessage.id 
-              ? { ...msg, audioUrl: aiAudioUrl }
-              : msg
-          ));
-        } catch (voiceError) {
-          console.error('Error generating AI voice:', voiceError);
-          // Continue without voice - the text response is still available
-        }
-      }
-
-    } catch (error) {
-      console.error('Error getting AI response:', error);
-      
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: "I apologize, but I'm experiencing technical difficulties right now. For immediate medical concerns, please contact your healthcare provider or emergency services. I'll be back to assist you shortly.",
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-      await saveMessageToHistory(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [conversationHistory, currentSession, isSavingMessage, saveMessageToHistory]);
-
-  // Handle initial message - only process once per unique message
-  useEffect(() => {
-    if (initialMessage && 
-        initialMessage.trim() && 
-        processedInitialMessage.current !== initialMessage) {
-      
-      console.log('ChatInterface: Processing initial message:', initialMessage);
-      processedInitialMessage.current = initialMessage;
-      
-      // Process the initial message
-      processInitialMessage(initialMessage);
-    }
-  }, [initialMessage, processInitialMessage]);
 
   const transcribeAudioWithElevenLabs = async (audioBlob: Blob): Promise<string> => {
     try {

@@ -37,7 +37,8 @@ function PatientHome({
   onRequestDoctorReview,
   currentSessionId,
   onSessionChange,
-  onShowChatHistory
+  onShowChatHistory,
+  chatKey
 }: {
   showNewChat: boolean;
   onStartNewChat: (message?: string) => void;
@@ -48,6 +49,7 @@ function PatientHome({
   currentSessionId?: string;
   onSessionChange: (sessionId: string) => void;
   onShowChatHistory: () => void;
+  chatKey: number;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -87,7 +89,7 @@ function PatientHome({
           <NewChatInterface onStartChat={onStartNewChat} />
         ) : (
           <ChatInterface
-            key={`${currentSessionId}-${initialMessage}`} // Force re-render when session or initial message changes
+            key={chatKey} // Use chatKey to force re-render
             onEmergencyEscalate={onEmergencyEscalate}
             onRequestDoctorReview={onRequestDoctorReview}
             initialMessage={initialMessage}
@@ -361,7 +363,7 @@ export default function PatientDashboard() {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string>('');
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const [chatKey, setChatKey] = useState(0); // Add key to force re-render
+  const [chatKey, setChatKey] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -373,7 +375,7 @@ export default function PatientDashboard() {
   const handleStartNewChat = useCallback((message?: string) => {
     console.log('PatientDashboard: Starting new chat with message:', message);
     
-    // Always set the message and switch to chat interface
+    // Set the initial message and switch to chat interface
     setInitialMessage(message || '');
     setShowNewChat(false);
     setCurrentSessionId(''); // Clear session to start fresh
@@ -392,6 +394,7 @@ export default function PatientDashboard() {
     console.log('PatientDashboard: Session changed to:', sessionId);
     setCurrentSessionId(sessionId);
     setShowNewChat(false);
+    setInitialMessage(''); // Clear initial message when switching sessions
   }, []);
 
   const handleSelectSession = useCallback((sessionId: string) => {
@@ -427,7 +430,6 @@ export default function PatientDashboard() {
       case 'chat':
         return (
           <PatientHome 
-            key={chatKey} // Force re-render when chatKey changes
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -437,6 +439,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
       case 'consultations':
@@ -452,7 +455,6 @@ export default function PatientDashboard() {
       default:
         return (
           <PatientHome 
-            key={chatKey}
             showNewChat={showNewChat}
             onStartNewChat={handleStartNewChat}
             onNewChatClick={handleNewChatClick}
@@ -462,6 +464,7 @@ export default function PatientDashboard() {
             currentSessionId={currentSessionId}
             onSessionChange={handleSessionChange}
             onShowChatHistory={() => setShowChatHistory(true)}
+            chatKey={chatKey}
           />
         );
     }
