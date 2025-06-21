@@ -292,8 +292,20 @@ export default function ChatInterface({
       console.log('ChatInterface: Processing initial message:', initialMessage);
       processedInitialMessage.current = initialMessage;
       
-      // Process the message immediately
-      handleSendMessage(initialMessage);
+      // Add the user message to the chat first, then process it
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: initialMessage,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Then process the message to get AI response
+      setTimeout(() => {
+        handleSendMessage(initialMessage);
+      }, 100); // Small delay to ensure the user message is rendered first
     }
   }, [initialMessage, handleSendMessage]);
 
