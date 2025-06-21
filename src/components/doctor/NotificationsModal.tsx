@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Bell, CheckCircle, Clock, AlertTriangle, User, MessageCircle, Calendar } from 'lucide-react';
+import { X, Bell, CheckCircle, Clock, AlertTriangle, User, MessageCircle, Calendar, Check, XCircle } from 'lucide-react';
 import { type Notification } from '../../services/supabaseService';
+import { doctorService } from '../../services/supabaseService';
 
 interface NotificationsModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface NotificationsModalProps {
   notifications: Notification[];
   onMarkAsRead: (notificationId: string) => void;
   onMarkAllAsRead: () => void;
+  onPatientAccepted?: () => void; // Callback to refresh patient list
 }
 
 export default function NotificationsModal({
@@ -15,9 +17,70 @@ export default function NotificationsModal({
   onClose,
   notifications,
   onMarkAsRead,
-  onMarkAllAsRead
+  onMarkAllAsRead,
+  onPatientAccepted
 }: NotificationsModalProps) {
+  const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
+
   if (!isOpen) return null;
+
+  const handleAcceptPatient = async (notification: Notification) => {
+    if (!notification.data?.request_id) return;
+
+    const requestId = notification.data.request_id;
+    setProcessingRequests(prev => new Set(prev).add(requestId));
+
+    try {
+      await doctorService.approveRequest(requestId);
+      
+      // Mark notification as read
+      onMarkAsRead(notification.id);
+      
+      // Notify parent component to refresh patient list
+      if (onPatientAccepted) {
+        onPatientAccepted();
+      }
+
+      console.log('Patient request approved successfully');
+    } catch (error) {
+      console.error('Error approving patient request:', error);
+      alert('Failed to accept patient request. Please try again.');
+    } finally {
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRejectPatient = async (notification: Notification) => {
+    if (!notification.data?.request_id) return;
+
+    const reason = prompt('Please provide a reason for declining this request (optional):');
+    if (reason === null) return; // User cancelled
+
+    const requestId = notification.data.request_id;
+    setProcessingRequests(prev => new Set(prev).add(requestId));
+
+    try {
+      await doctorService.rejectRequest(requestId, reason || undefined);
+      
+      // Mark notification as read
+      onMarkAsRead(notification.id);
+
+      console.log('Patient request rejected successfully');
+    } catch (error) {
+      console.error('Error rejecting patient request:', error);
+      alert('Failed to reject patient request. Please try again.');
+    } finally {
+      setProcessingRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
+    }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -68,6 +131,49 @@ export default function NotificationsModal({
 
   const unreadNotifications = notifications.filter(n => !n.read);
   const readNotifications = notifications.filter(n => n.read);
+
+  const renderNotificationActions = (notification: Notification) => {
+    if (notification.type === 'doctor_request' && notification.data?.request_id && !notification.read) {
+      const requestId = notification.data.request_id;
+      const isProcessing = processingRequests.has(requestId);
+
+      return (
+        <div className="flex items-center space-x-2 mt-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAcceptPatient(notification);
+            }}
+            disabled={isProcessing}
+            className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            {isProcessing ? (
+              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <Check className="w-3 h-3" />
+            )}
+            <span>Accept Patient</span>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRejectPatient(notification);
+            }}
+            disabled={isProcessing}
+            className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            {isProcessing ? (
+              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+            ) : (
+              <XCircle className="w-3 h-3" />
+            )}
+            <span>Decline</span>
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -121,7 +227,7 @@ export default function NotificationsModal({
                     <div
                       key={notification.id}
                       className={`border rounded-xl p-4 ${getNotificationColor(notification.type)} cursor-pointer hover:shadow-md transition-all`}
-                      onClick={() => onMarkAsRead(notification.id)}
+                      onClick={() => notification.type !== 'doctor_request' && onMarkAsRead(notification.id)}
                     >
                       <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0">
@@ -147,6 +253,7 @@ export default function NotificationsModal({
                               )}
                             </div>
                           )}
+                          {renderNotificationActions(notification)}
                         </div>
                       </div>
                     </div>
@@ -182,6 +289,11 @@ export default function NotificationsModal({
                             </span>
                           </div>
                           <p className="text-gray-600 text-sm">{notification.message}</p>
+                          {notification.data?.patient_name && (
+                            <div className="mt-1 text-xs text-gray-500">
+                              Patient: {notification.data.patient_name}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

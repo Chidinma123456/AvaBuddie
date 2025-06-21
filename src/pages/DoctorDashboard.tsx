@@ -82,7 +82,8 @@ function DoctorHome({
   appointments,
   setAppointments,
   pendingRequests,
-  isLoading
+  isLoading,
+  onRefreshPatients
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
@@ -94,6 +95,7 @@ function DoctorHome({
   setAppointments: (appointments: Appointment[]) => void;
   pendingRequests: PatientDoctorRequest[];
   isLoading: boolean;
+  onRefreshPatients: () => void;
 }) {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -230,7 +232,15 @@ function DoctorHome({
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-4 lg:p-6 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <h3 className="text-lg lg:text-xl font-semibold text-gray-900">My Patients</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg lg:text-xl font-semibold text-gray-900">My Patients</h3>
+              <button
+                onClick={onRefreshPatients}
+                className="lg:hidden text-blue-600 hover:text-blue-700 text-sm font-medium"
+              >
+                Refresh
+              </button>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative">
@@ -258,6 +268,13 @@ function DoctorHome({
                   <option value="Improving">Improving</option>
                 </select>
               </div>
+
+              <button
+                onClick={onRefreshPatients}
+                className="hidden lg:block text-blue-600 hover:text-blue-700 text-sm font-medium px-3 py-2 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                Refresh
+              </button>
             </div>
           </div>
         </div>
@@ -619,6 +636,12 @@ export default function DoctorDashboard() {
     }
   };
 
+  const handlePatientAccepted = () => {
+    // Refresh patient list and notifications when a patient is accepted
+    loadDoctorData();
+    loadNotifications();
+  };
+
   const navigationItems = [
     { id: 'patients', icon: Users, label: 'Patients' },
     { id: 'schedule', icon: Calendar, label: 'Schedule' },
@@ -647,6 +670,7 @@ export default function DoctorDashboard() {
             setAppointments={setAppointments}
             pendingRequests={pendingRequests}
             isLoading={isLoading}
+            onRefreshPatients={loadDoctorData}
           />
         );
       case 'schedule':
@@ -670,6 +694,7 @@ export default function DoctorDashboard() {
             setAppointments={setAppointments}
             pendingRequests={pendingRequests}
             isLoading={isLoading}
+            onRefreshPatients={loadDoctorData}
           />
         );
     }
@@ -826,6 +851,7 @@ export default function DoctorDashboard() {
         notifications={notifications}
         onMarkAsRead={handleMarkNotificationAsRead}
         onMarkAllAsRead={handleMarkAllAsRead}
+        onPatientAccepted={handlePatientAccepted}
       />
     </div>
   );
