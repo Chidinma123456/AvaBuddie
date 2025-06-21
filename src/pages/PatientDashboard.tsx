@@ -373,16 +373,11 @@ export default function PatientDashboard() {
   const handleStartNewChat = useCallback((message?: string) => {
     console.log('PatientDashboard: Starting new chat with message:', message);
     
-    if (message && message.trim()) {
-      setInitialMessage(message);
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1); // Force ChatInterface to re-render
-    } else {
-      // Start chat without initial message
-      setInitialMessage('');
-      setShowNewChat(false);
-      setChatKey(prev => prev + 1);
-    }
+    // Always set the message and switch to chat interface
+    setInitialMessage(message || '');
+    setShowNewChat(false);
+    setCurrentSessionId(''); // Clear session to start fresh
+    setChatKey(prev => prev + 1); // Force ChatInterface to re-render
   }, []);
 
   const handleNewChatClick = useCallback(() => {

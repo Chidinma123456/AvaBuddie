@@ -29,6 +29,7 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
 
   const handleQuickStart = (message: string) => {
     console.log('NewChatInterface: Quick start with message:', message);
+    // Immediately start chat with the template message
     onStartChat(message);
   };
 
@@ -37,25 +38,25 @@ export default function NewChatInterface({ onStartChat }: NewChatInterfaceProps)
       icon: '🤒',
       title: 'I have symptoms',
       description: 'Describe your symptoms for health guidance',
-      message: 'I have some symptoms I\'d like to discuss'
+      message: 'I have some symptoms I\'d like to discuss with you. Can you help me understand what might be going on?'
     },
     {
       icon: '💊',
       title: 'Medication question',
       description: 'Ask about medications or interactions',
-      message: 'I have a question about my medication'
+      message: 'I have a question about my medication. Can you help me understand more about it?'
     },
     {
       icon: '🩺',
       title: 'General health',
       description: 'General health and wellness questions',
-      message: 'I have a general health question'
+      message: 'I have a general health question and would like your guidance.'
     },
     {
       icon: '🏥',
       title: 'Emergency guidance',
       description: 'Need help determining urgency',
-      message: 'I need help determining if this is urgent'
+      message: 'I need help determining if my situation is urgent and what I should do.'
     }
   ];
 
