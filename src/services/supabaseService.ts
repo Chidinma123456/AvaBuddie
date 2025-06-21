@@ -565,20 +565,44 @@ export const doctorService = {
   },
 
   async approveRequest(requestId: string): Promise<void> {
-    const { error } = await supabase.rpc('approve_doctor_request', {
-      request_id: requestId
-    });
+    try {
+      console.log('Approving doctor request:', requestId);
+      
+      const { error } = await supabase.rpc('approve_doctor_request', {
+        request_id: requestId
+      });
 
-    if (error) throw error;
+      if (error) {
+        console.error('Error approving request:', error);
+        throw error;
+      }
+      
+      console.log('Request approved successfully');
+    } catch (error) {
+      console.error('Error in approveRequest:', error);
+      throw error;
+    }
   },
 
   async rejectRequest(requestId: string, reason?: string): Promise<void> {
-    const { error } = await supabase.rpc('reject_doctor_request', {
-      request_id: requestId,
-      rejection_reason: reason
-    });
+    try {
+      console.log('Rejecting doctor request:', requestId, 'with reason:', reason);
+      
+      const { error } = await supabase.rpc('reject_doctor_request', {
+        request_id: requestId,
+        rejection_reason: reason
+      });
 
-    if (error) throw error;
+      if (error) {
+        console.error('Error rejecting request:', error);
+        throw error;
+      }
+      
+      console.log('Request rejected successfully');
+    } catch (error) {
+      console.error('Error in rejectRequest:', error);
+      throw error;
+    }
   }
 };
 
@@ -956,9 +980,13 @@ export const notificationService = {
       .select('*')
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false })
-      .limit(20); // Reduced limit for performance
+      .limit(50); // Increased limit for notifications
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching notifications:', error);
+      return [];
+    }
+    
     return data || [];
   },
 
@@ -968,7 +996,10 @@ export const notificationService = {
       .update({ read: true })
       .eq('id', notificationId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
   },
 
   async markAllAsRead(): Promise<void> {
@@ -981,7 +1012,10 @@ export const notificationService = {
       .eq('user_id', profile.id)
       .eq('read', false);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
   },
 
   // Test function to check notifications
