@@ -25,7 +25,7 @@ interface TavusConversationConfig {
 class TavusService {
   private apiKey: string;
   private baseUrl = 'https://tavusapi.com';
-  private drAvaPersonaId = 'p9863a04af01'; // Dr. Ava persona ID
+  private drAvaPersonaId = 'p9863a04af01'; // Updated Dr. Ava persona ID
 
   constructor() {
     this.apiKey = import.meta.env.VITE_TAVUS_API_KEY;
@@ -87,17 +87,9 @@ Remember: You are here to support and guide patients, but professional medical c
         };
       }
 
-      // First, let's check if the persona exists
-      console.log('Checking Tavus personas...');
-      const personas = await this.getPersonas();
-      console.log('Available personas:', personas);
-
-      // Use the first available persona if our default doesn't exist
-      let personaId = this.drAvaPersonaId;
-      if (personas.length > 0 && !personas.find(p => p.persona_id === this.drAvaPersonaId)) {
-        personaId = personas[0].persona_id;
-        console.log('Using first available persona:', personaId);
-      }
+      // Use the specific persona ID provided
+      const personaId = this.drAvaPersonaId; // p9863a04af01
+      console.log('Creating Tavus conversation with persona ID:', personaId);
 
       const conversationConfig: TavusConversationConfig = {
         persona_id: personaId,
@@ -109,7 +101,7 @@ Remember: You are here to support and guide patients, but professional medical c
         }
       };
 
-      console.log('Creating Tavus conversation with config:', conversationConfig);
+      console.log('Tavus conversation config:', conversationConfig);
 
       const response = await fetch(`${this.baseUrl}/v2/conversations`, {
         method: 'POST',
@@ -122,7 +114,7 @@ Remember: You are here to support and guide patients, but professional medical c
 
       const responseText = await response.text();
       console.log('Tavus API Response Status:', response.status);
-      console.log('Tavus API Response:', responseText);
+      console.log('Tavus API Response Body:', responseText);
 
       if (!response.ok) {
         console.error('Tavus API Error Response:', responseText);
@@ -133,9 +125,24 @@ Remember: You are here to support and guide patients, but professional medical c
           const errorData = JSON.parse(responseText);
           if (errorData.message) {
             errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
           }
         } catch (e) {
-          // Use default error message
+          // Use default error message if JSON parsing fails
+        }
+        
+        // Handle specific error cases
+        if (response.status === 401) {
+          errorMessage = 'Invalid Tavus API key. Please check your VITE_TAVUS_API_KEY environment variable.';
+        } else if (response.status === 403) {
+          errorMessage = 'Tavus API access forbidden. Please check your API key permissions.';
+        } else if (response.status === 404) {
+          errorMessage = `Persona ID ${personaId} not found. Please verify the persona exists in your Tavus account.`;
+        } else if (response.status === 422) {
+          errorMessage = 'Invalid conversation configuration. Please check the persona ID and settings.';
         }
         
         throw new Error(errorMessage);
@@ -148,7 +155,7 @@ Remember: You are here to support and guide patients, but professional medical c
         throw new Error('Invalid JSON response from Tavus API');
       }
 
-      console.log('Tavus conversation created successfully:', result);
+      console.log('Tavus conversation created successfully with persona p9863a04af01:', result);
       
       return result;
     } catch (error) {
@@ -289,7 +296,18 @@ Remember: You are here to support and guide patients, but professional medical c
       const data = await response.json();
       console.log('Tavus personas response:', data);
       
-      return data.data || data.personas || [];
+      // Check if our specific persona exists
+      const personas = data.data || data.personas || [];
+      const targetPersona = personas.find((p: TavusPersona) => p.persona_id === this.drAvaPersonaId);
+      
+      if (targetPersona) {
+        console.log('Found target persona p9863a04af01:', targetPersona);
+      } else {
+        console.warn('Target persona p9863a04af01 not found in available personas');
+        console.log('Available personas:', personas.map((p: TavusPersona) => ({ id: p.persona_id, name: p.persona_name })));
+      }
+      
+      return personas;
     } catch (error) {
       console.error('Error fetching Tavus personas:', error);
       return [];
@@ -369,7 +387,12 @@ Remember: You are here to support and guide patients, but professional medical c
     if (this.apiKey === 'your_tavus_api_key_here') {
       return 'Placeholder API key detected - please update with real key';
     }
-    return 'API key configured';
+    return `API key configured - using persona ${this.drAvaPersonaId}`;
+  }
+
+  // Helper method to get the persona ID being used
+  getPersonaId(): string {
+    return this.drAvaPersonaId;
   }
 }
 
