@@ -497,7 +497,7 @@ export default function PatientDashboard() {
             <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-blue-600 to-teal-600 rounded-lg">
               <Heart className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">BuddyDoc</span>
+            <span className="text-xl font-bold text-gray-900">AvaBuddie</span>
           </div>
           <button 
             onClick={() => setSidebarOpen(false)}

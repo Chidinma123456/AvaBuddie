@@ -129,7 +129,7 @@ export default function Login() {
             <div className="flex items-center justify-center w-12 h-12 bg-white/20 rounded-xl backdrop-blur-sm">
               <Heart className="w-7 h-7 text-white" />
             </div>
-            <span className="text-3xl font-bold">VirtualDoc</span>
+            <span className="text-3xl font-bold">AvaBuddie</span>
           </Link>
           
           <div className="max-w-md">
@@ -166,7 +166,7 @@ export default function Login() {
             <div>
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">Choose Your Role</h2>
-                <p className="text-gray-600">Select how you'll be using VirtualDoc</p>
+                <p className="text-gray-600">Select how you'll be using AvaBuddie</p>
               </div>
 
               <div className="space-y-4">
