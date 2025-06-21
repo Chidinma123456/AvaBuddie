@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, profileService, type Profile } from '../services/supabaseService';
+import { supabase, profileService, setAuthErrorCallback, type Profile } from '../services/supabaseService';
 import type { User as SupabaseUser, AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export type UserRole = 'patient' | 'health-worker' | 'doctor';
@@ -40,6 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+
+    // Set up auth error callback to handle session errors
+    setAuthErrorCallback(() => {
+      console.log('Auth error detected, logging out user');
+      if (mounted) {
+        logout();
+      }
+    });
 
     // Get initial session with timeout
     const initializeAuth = async () => {

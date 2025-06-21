@@ -37,6 +37,13 @@ if (supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL') {
   }
 }
 
+// Auth error callback for handling session errors
+let onAuthErrorCallback: (() => void) | null = null;
+
+export function setAuthErrorCallback(callback: () => void) {
+  onAuthErrorCallback = callback;
+}
+
 // Create a fallback client if environment variables are missing (for production)
 let supabase: any;
 
@@ -65,8 +72,32 @@ if (supabaseUrl && supabaseAnonKey &&
         return fetch(url, {
           ...options,
           signal: controller.signal
-        }).then(response => {
+        }).then(async response => {
           clearTimeout(timeoutId);
+          
+          // Check for 403 errors that indicate session issues
+          if (response.status === 403) {
+            try {
+              // Clone the response to read the body without consuming it
+              const responseClone = response.clone();
+              const responseText = await responseClone.text();
+              
+              // Check if this is a session-related error
+              if (responseText.includes('session_not_found') || 
+                  responseText.includes('Session from session_id claim in JWT does not exist') ||
+                  responseText.includes('JWT expired')) {
+                console.warn('Supabase session error detected, triggering logout:', responseText);
+                
+                // Trigger logout callback if available
+                if (onAuthErrorCallback) {
+                  onAuthErrorCallback();
+                }
+              }
+            } catch (error) {
+              console.error('Error checking response body for session error:', error);
+            }
+          }
+          
           return response;
         }).catch(error => {
           clearTimeout(timeoutId);
