@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Bell, CheckCircle, Clock, AlertTriangle, User, MessageCircle, Calendar, Check, XCircle } from 'lucide-react';
+import { X, Bell, AlertTriangle, User, MessageCircle, Calendar, Check, XCircle } from 'lucide-react';
 import { type Notification } from '../../services/supabaseService';
 import { doctorService } from '../../services/supabaseService';
 

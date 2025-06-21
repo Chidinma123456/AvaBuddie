@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { X, FileText, Clock, AlertTriangle, User, CheckCircle, Eye, MessageCircle, Send, ArrowLeft } from 'lucide-react';
-import { doctorService } from '../../services/supabaseService';
 
 interface PendingCase {
   id: string;
@@ -133,7 +132,7 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
     }
   };
 
-  const handleCaseAction = async (caseId: string, action: 'approve' | 'request_info' | 'escalate') => {
+  const handleCaseAction = async (action: 'approve' | 'request_info' | 'escalate') => {
     setActionType(action);
     setResponseMessage('');
   };
@@ -146,19 +145,6 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
     try {
       // Simulate API call based on action type
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      let successMessage = '';
-      switch (actionType) {
-        case 'approve':
-          successMessage = 'Case approved and closed successfully';
-          break;
-        case 'request_info':
-          successMessage = 'Additional information requested from patient';
-          break;
-        case 'escalate':
-          successMessage = 'Case escalated to senior physician';
-          break;
-      }
       
       console.log(`${actionType} action completed for case ${selectedCase.id}:`, responseMessage);
       
@@ -408,21 +394,21 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
             {/* Action Buttons */}
             <div className="flex space-x-3 pt-6 border-t border-gray-200">
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'approve')}
+                onClick={() => handleCaseAction('approve')}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <CheckCircle className="w-4 h-4" />
                 <span>Approve & Close Case</span>
               </button>
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'request_info')}
+                onClick={() => handleCaseAction('request_info')}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>Request More Info</span>
               </button>
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'escalate')}
+                onClick={() => handleCaseAction('escalate')}
                 className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <AlertTriangle className="w-4 h-4" />
