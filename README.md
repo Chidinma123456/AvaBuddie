@@ -1,9 +1,9 @@
-# BuddyDoc - AI-Driven Telemedicine Platform
+# AvaBuddie - AI-Driven Telemedicine Platform
 
 <div align="center">
   <img src="public/ava.webp" alt="Dr. Ava" width="120" height="120" style="border-radius: 50%;">
   
-  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/buddydoc)
+  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/avabuddie)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
   [![React](https://img.shields.io/badge/React-18.3.1-61dafb.svg)](https://reactjs.org/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-3178c6.svg)](https://www.typescriptlang.org/)
@@ -12,7 +12,7 @@
 
 ## 🏥 Overview
 
-BuddyDoc is a comprehensive AI-powered telemedicine platform that connects patients, healthcare workers, and doctors through intelligent assistance and seamless communication. Built with modern web technologies, it provides 24/7 healthcare support with advanced AI capabilities.
+AvaBuddie is a comprehensive AI-powered telemedicine platform that connects patients, healthcare workers, and doctors through intelligent assistance and seamless communication. Built with modern web technologies, it provides 24/7 healthcare support with advanced AI capabilities.
 
 ### ✨ Key Features
 
@@ -67,8 +67,8 @@ BuddyDoc is a comprehensive AI-powered telemedicine platform that connects patie
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/buddydoc.git
-   cd buddydoc
+   git clone https://github.com/yourusername/avabuddie.git
+   cd avabuddie
    ```
 
 2. **Install dependencies**
@@ -215,7 +215,7 @@ npm run deploy:docker
 ### Project Structure
 
 ```
-buddydoc/
+avabuddie/
 ├── public/                 # Static assets
 ├── src/
 │   ├── components/        # React components
@@ -289,9 +289,9 @@ buddydoc/
 - [User Guide](docs/user-guide.md)
 
 ### Getting Help
-- 📧 Email: support@buddydoc.com
-- 💬 Discord: [Join our community](https://discord.gg/buddydoc)
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/buddydoc/issues)
+- 📧 Email: support@avabuddie.com
+- 💬 Discord: [Join our community](https://discord.gg/avabuddie)
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/avabuddie/issues)
 
 ## 📄 License
 
@@ -330,5 +330,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   <p>Built with ❤️ for better healthcare accessibility</p>
-  <p>© 2025 BuddyDoc. All rights reserved.</p>
+  <p>© 2025 AvaBuddie. All rights reserved.</p>
 </div>

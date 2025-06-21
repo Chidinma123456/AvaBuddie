@@ -37,7 +37,7 @@ class ErrorBoundary extends React.Component<
         }}>
           <h1 style={{ color: '#dc3545', marginBottom: '20px' }}>Something went wrong</h1>
           <p style={{ color: '#6c757d', marginBottom: '20px' }}>
-            BuddyDoc encountered an error. Please check the console for more details.
+            AvaBuddie encountered an error. Please check the console for more details.
           </p>
           <button 
             onClick={() => window.location.reload()}
@@ -76,7 +76,7 @@ class ErrorBoundary extends React.Component<
 }
 
 // Add console logs to help debug
-console.log('BuddyDoc starting...');
+console.log('AvaBuddie starting...');
 console.log('Environment variables:', {
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Not set',
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not set',
@@ -91,7 +91,7 @@ if (!rootElement) {
   console.error('Root element not found!');
   document.body.innerHTML = `
     <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">
-      <h1 style="color: #dc3545;">BuddyDoc - Root Element Missing</h1>
+      <h1 style="color: #dc3545;">AvaBuddie - Root Element Missing</h1>
       <p>The root element was not found in the HTML. Please check the index.html file.</p>
     </div>
   `;
@@ -105,12 +105,12 @@ if (!rootElement) {
         </ErrorBoundary>
       </StrictMode>
     );
-    console.log('BuddyDoc rendered successfully');
+    console.log('AvaBuddie rendered successfully');
   } catch (error) {
-    console.error('Failed to render BuddyDoc:', error);
+    console.error('Failed to render AvaBuddie:', error);
     rootElement.innerHTML = `
       <div style="padding: 20px; text-align: center; font-family: Arial, sans-serif; background-color: #f8f9fa; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <h1 style="color: #dc3545; margin-bottom: 20px;">BuddyDoc - Render Error</h1>
+        <h1 style="color: #dc3545; margin-bottom: 20px;">AvaBuddie - Render Error</h1>
         <p style="color: #6c757d; margin-bottom: 20px;">Failed to start the application. Please check the console for details.</p>
         <button onclick="window.location.reload()" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
           Reload Page
