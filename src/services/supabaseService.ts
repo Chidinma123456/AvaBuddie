@@ -431,6 +431,50 @@ export const doctorService = {
       handleAuthError(error);
       return null;
     }
+  },
+
+  async getPatients(): Promise<Profile[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('patient_doctor_relationships')
+        .select(`
+          patient:profiles!patient_doctor_relationships_patient_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id);
+
+      if (error) throw error;
+      return data?.map(rel => rel.patient).filter(Boolean) || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
+  async getPendingRequests(): Promise<PatientDoctorRequest[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id)
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
   }
 };
 
@@ -801,6 +845,11 @@ export const notificationService = {
       handleAuthError(error);
       return [];
     }
+  },
+
+  // Alias for backward compatibility
+  async getNotifications(): Promise<Notification[]> {
+    return this.getMyNotifications();
   },
 
   async markAsRead(notificationId: string): Promise<boolean> {

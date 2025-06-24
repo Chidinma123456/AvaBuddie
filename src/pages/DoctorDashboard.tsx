@@ -583,7 +583,7 @@ export default function DoctorDashboard() {
 
   const loadNotifications = async () => {
     try {
-      const userNotifications = await notificationService.getNotifications();
+      const userNotifications = await notificationService.getMyNotifications();
       setNotifications(userNotifications);
       
       // Count unread notifications
