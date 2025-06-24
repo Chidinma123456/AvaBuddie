@@ -189,45 +189,80 @@ export const profileService = {
         role: userData.role
       };
 
-      // First, try to check if profile already exists
-      const { data: existingProfile } = await supabase
+      console.log('Creating profile with data:', profileData);
+
+      // First, check if profile already exists
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing profile:', checkError);
+        throw checkError;
+      }
 
       if (existingProfile) {
         console.log('Profile already exists, returning existing profile');
         return existingProfile;
       }
 
-      // Try to create the profile
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert([profileData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Profile creation error:', error);
-        
-        // If it's a duplicate key error, try to fetch the existing profile
-        if (error.code === '23505' || error.message?.includes('duplicate')) {
-          const { data: existingData } = await supabase
+      // Try to create the profile with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const { data, error } = await supabase
             .from('profiles')
-            .select('*')
-            .eq('user_id', user.id)
+            .insert([profileData])
+            .select()
             .single();
-          
-          if (existingData) {
-            return existingData;
+
+          if (error) {
+            console.error(`Profile creation error (attempt ${retryCount + 1}):`, error);
+            
+            // If it's a duplicate key error, try to fetch the existing profile
+            if (error.code === '23505' || error.message?.includes('duplicate')) {
+              const { data: existingData, error: fetchError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+              
+              if (existingData && !fetchError) {
+                console.log('Found existing profile after duplicate error');
+                return existingData;
+              }
+            }
+            
+            // If it's a permission error, wait and retry
+            if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.log(`Retrying profile creation in ${retryCount * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+                continue;
+              }
+            }
+            
+            throw error;
           }
+
+          console.log('Profile created successfully:', data);
+          return data;
+        } catch (retryError) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            throw retryError;
+          }
+          console.log(`Retrying profile creation (${retryCount}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
         }
-        
-        throw error;
       }
 
-      return data;
+      throw new Error('Failed to create profile after maximum retries');
     } catch (error) {
       console.error('Error creating profile:', error);
       throw error;
@@ -236,15 +271,32 @@ export const profileService = {
 
   async ensureProfileExists(user: User, userData: { name: string; role: string }): Promise<Profile> {
     try {
-      // First try to get existing profile
-      let profile = await this.getCurrentProfile();
+      // First try to get existing profile with a longer timeout
+      let profile = await Promise.race([
+        this.getCurrentProfile(),
+        new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        )
+      ]);
       
       if (profile) {
+        console.log('Found existing profile');
         return profile;
       }
 
-      // If no profile exists, create one
-      console.log('No profile found, creating new profile...');
+      // If no profile exists, wait a bit for the trigger to potentially create it
+      console.log('No profile found, waiting for potential trigger creation...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Try again to get the profile
+      profile = await this.getCurrentProfile();
+      if (profile) {
+        console.log('Profile found after waiting for trigger');
+        return profile;
+      }
+
+      // If still no profile exists, create one manually
+      console.log('No profile found after trigger wait, creating manually...');
       profile = await this.createProfileFromAuth(user, userData);
       
       return profile;

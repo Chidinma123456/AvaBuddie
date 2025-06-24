@@ -185,6 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     
     try {
+      console.log('Starting signup process for:', email, userData);
+      
       const { data, error: authError } = await Promise.race([
         supabase.auth.signUp({
           email,
@@ -197,17 +199,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }),
         new Promise<any>((_, reject) => 
-          setTimeout(() => reject(new Error('Signup timeout')), 20000)
+          setTimeout(() => reject(new Error('Signup timeout')), 30000)
         )
       ]);
       
       if (authError) {
+        console.error('Supabase auth error:', authError);
         throw new Error(`Signup failed: ${authError.message}`);
       }
 
       if (!data.user) {
         throw new Error('No user returned from signup');
       }
+
+      console.log('User created successfully:', data.user.id);
 
       // Create user object immediately
       const userObj: User = {
@@ -219,12 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userObj);
 
-      // Always try to ensure profile exists after successful signup
+      // Try to ensure profile exists with enhanced error handling
       try {
         console.log('Ensuring profile exists for new user...');
         const profile = await profileService.ensureProfileExists(data.user, userData);
         
         if (profile) {
+          console.log('Profile created/found successfully:', profile.id);
           setProfile(profile);
           setUser(prev => prev ? {
             ...prev,
@@ -233,15 +239,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             avatar: profile.avatar_url,
             profile: profile
           } : null);
+        } else {
+          console.warn('Profile creation returned null, but continuing...');
         }
-      } catch (profileError) {
-        console.warn('Profile creation/verification failed:', profileError);
-        // Don't throw here - user is created, they can still use the app
-        // The profile might be created by the database trigger later
+      } catch (profileError: any) {
+        console.error('Profile creation/verification failed:', profileError);
+        
+        // Provide more specific error messages
+        if (profileError.message?.includes('permission') || profileError.message?.includes('policy')) {
+          throw new Error('Database permission error. Please contact support if this persists.');
+        } else if (profileError.message?.includes('duplicate')) {
+          console.log('Profile already exists, continuing...');
+          // This is actually okay - the profile exists
+        } else {
+          // For other errors, still allow the user to continue but log the issue
+          console.warn('Profile creation failed but user was created successfully. Profile may be created by database trigger.');
+        }
       }
-    } catch (error) {
+      
+      console.log('Signup process completed successfully');
+    } catch (error: any) {
+      console.error('Signup process failed:', error);
       setIsLoading(false);
-      throw error;
+      
+      // Provide user-friendly error messages
+      if (error.message?.includes('Database error saving new user')) {
+        throw new Error('There was a problem setting up your account. Please try again or contact support.');
+      } else if (error.message?.includes('User already registered')) {
+        throw new Error('An account with this email already exists. Please sign in instead.');
+      } else if (error.message?.includes('timeout')) {
+        throw new Error('The signup process timed out. Please check your connection and try again.');
+      } else {
+        throw error;
+      }
     }
   };
 
