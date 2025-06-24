@@ -219,26 +219,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userObj);
 
-      // Explicitly create profile if user was created successfully
-      // This ensures the profile is created even if the trigger fails
-      if (data.user && !data.user.email_confirmed_at) {
-        // For new signups, we need to wait a moment and then create the profile
-        setTimeout(async () => {
-          try {
-            await profileService.createProfileFromAuth(data.user!, userData);
-          } catch (profileError) {
-            console.warn('Profile creation after signup failed:', profileError);
-            // Don't throw here as the user is already created
-          }
-        }, 1000);
-      } else if (data.user) {
-        // If user is immediately confirmed, create profile now
-        try {
-          await profileService.createProfileFromAuth(data.user, userData);
-        } catch (profileError) {
-          console.warn('Profile creation failed:', profileError);
-          // Don't throw here as the user is already created
+      // Always try to ensure profile exists after successful signup
+      try {
+        console.log('Ensuring profile exists for new user...');
+        const profile = await profileService.ensureProfileExists(data.user, userData);
+        
+        if (profile) {
+          setProfile(profile);
+          setUser(prev => prev ? {
+            ...prev,
+            name: profile.full_name,
+            role: profile.role,
+            avatar: profile.avatar_url,
+            profile: profile
+          } : null);
         }
+      } catch (profileError) {
+        console.warn('Profile creation/verification failed:', profileError);
+        // Don't throw here - user is created, they can still use the app
+        // The profile might be created by the database trigger later
       }
     } catch (error) {
       setIsLoading(false);

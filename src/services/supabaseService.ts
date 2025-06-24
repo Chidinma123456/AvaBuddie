@@ -189,6 +189,19 @@ export const profileService = {
         role: userData.role
       };
 
+      // First, try to check if profile already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('Profile already exists, returning existing profile');
+        return existingProfile;
+      }
+
+      // Try to create the profile
       const { data, error } = await supabase
         .from('profiles')
         .insert([profileData])
@@ -197,12 +210,46 @@ export const profileService = {
 
       if (error) {
         console.error('Profile creation error:', error);
+        
+        // If it's a duplicate key error, try to fetch the existing profile
+        if (error.code === '23505' || error.message?.includes('duplicate')) {
+          const { data: existingData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (existingData) {
+            return existingData;
+          }
+        }
+        
         throw error;
       }
 
       return data;
     } catch (error) {
       console.error('Error creating profile:', error);
+      throw error;
+    }
+  },
+
+  async ensureProfileExists(user: User, userData: { name: string; role: string }): Promise<Profile> {
+    try {
+      // First try to get existing profile
+      let profile = await this.getCurrentProfile();
+      
+      if (profile) {
+        return profile;
+      }
+
+      // If no profile exists, create one
+      console.log('No profile found, creating new profile...');
+      profile = await this.createProfileFromAuth(user, userData);
+      
+      return profile;
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error);
       throw error;
     }
   },
