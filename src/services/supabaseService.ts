@@ -132,11 +132,21 @@ export interface Notification {
   created_at: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'ai';
+  content: string;
+  timestamp: string;
+  audioUrl?: string;
+  imageUrl?: string;
+  isVoiceMessage?: boolean;
+}
+
 export interface ChatSession {
   id: string;
   patient_id: string;
   session_name: string;
-  messages: any[];
+  messages: ChatMessage[];
   last_message_at: string;
   created_at: string;
   updated_at: string;
@@ -651,7 +661,7 @@ export const notificationService = {
 
 // Chat Session Service
 export const chatSessionService = {
-  async createSession(sessionName: string): Promise<ChatSession | null> {
+  async createSession(sessionName: string = 'New Chat'): Promise<ChatSession | null> {
     try {
       const profile = await profileService.getCurrentProfile();
       if (!profile) throw new Error('No profile found');
@@ -664,6 +674,22 @@ export const chatSessionService = {
           messages: []
         }])
         .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async getSession(id: string): Promise<ChatSession | null> {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', id)
         .single();
 
       if (error) throw error;
@@ -727,5 +753,50 @@ export const chatSessionService = {
       handleAuthError(error);
       return false;
     }
+  },
+
+  async saveMessage(sessionId: string, message: ChatMessage): Promise<boolean> {
+    try {
+      // Get current session
+      const session = await this.getSession(sessionId);
+      if (!session) throw new Error('Session not found');
+
+      // Add new message to messages array
+      const updatedMessages = [...session.messages, message];
+
+      // Update session with new messages
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ 
+          messages: updatedMessages,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
+    }
+  },
+
+  async createNewSession(): Promise<ChatSession> {
+    const session = await this.createSession('New Chat');
+    if (!session) throw new Error('Failed to create new session');
+    return session;
+  },
+
+  async getAllSessions(): Promise<ChatSession[]> {
+    return this.getMySessions();
+  },
+
+  async updateSessionName(sessionId: string, sessionName: string): Promise<boolean> {
+    const result = await this.updateSession(sessionId, { session_name: sessionName });
+    return result !== null;
   }
 };
+
+// Export chatHistoryService as an alias to chatSessionService for backward compatibility
+export const chatHistoryService = chatSessionService;

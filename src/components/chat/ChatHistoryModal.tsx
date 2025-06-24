@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, MessageCircle, Calendar, Trash2, Edit3, Plus } from 'lucide-react';
-import { chatHistoryService, type ChatSession } from '../../services/supabaseService';
+import { chatSessionService, type ChatSession } from '../../services/supabaseService';
 
 interface ChatHistoryModalProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export default function ChatHistoryModal({
   const loadSessions = async () => {
     setIsLoading(true);
     try {
-      const allSessions = await chatHistoryService.getAllSessions();
+      const allSessions = await chatSessionService.getMySessions();
       setSessions(allSessions);
     } catch (error) {
       console.error('Error loading chat sessions:', error);
@@ -40,7 +40,7 @@ export default function ChatHistoryModal({
 
   const handleCreateNewSession = async () => {
     try {
-      const newSession = await chatHistoryService.createNewSession();
+      const newSession = await chatSessionService.createNewSession();
       setSessions(prev => [newSession, ...prev]);
       onSelectSession(newSession.id);
       onClose();
@@ -55,12 +55,12 @@ export default function ChatHistoryModal({
     }
 
     try {
-      await chatHistoryService.deleteSession(sessionId);
+      await chatSessionService.deleteSession(sessionId);
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       
       // If deleting current session, create a new one
       if (sessionId === currentSessionId) {
-        const newSession = await chatHistoryService.createNewSession();
+        const newSession = await chatSessionService.createNewSession();
         setSessions(prev => [newSession, ...prev]);
         onSelectSession(newSession.id);
       }
@@ -78,7 +78,7 @@ export default function ChatHistoryModal({
     if (!editName.trim()) return;
 
     try {
-      await chatHistoryService.updateSessionName(sessionId, editName.trim());
+      await chatSessionService.updateSession(sessionId, { session_name: editName.trim() });
       setSessions(prev => prev.map(s => 
         s.id === sessionId 
           ? { ...s, session_name: editName.trim() }

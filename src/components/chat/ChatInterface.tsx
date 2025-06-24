@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { geminiService, type GeminiMessage } from '../../services/geminiService';
 import { elevenLabsService } from '../../services/elevenLabsService';
-import { chatHistoryService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
+import { chatSessionService, type ChatMessage, type ChatSession } from '../../services/supabaseService';
 
 interface Message {
   id: string;
@@ -108,7 +108,7 @@ export default function ChatInterface({
 
       if (sessionId) {
         // Load specific session
-        session = await chatHistoryService.getSession(sessionId);
+        session = await chatSessionService.getSession(sessionId);
       } else {
         // For new chats, don't load any existing session
         // This ensures we start completely fresh
@@ -157,7 +157,7 @@ export default function ChatInterface({
         }
       } else if (!sessionId) {
         // For new chats without sessionId, create a new session
-        const newSession = await chatHistoryService.createNewSession();
+        const newSession = await chatSessionService.createNewSession();
         setCurrentSession(newSession);
         if (onSessionChange) {
           onSessionChange(newSession.id);
@@ -191,7 +191,7 @@ export default function ChatInterface({
         isVoiceMessage: message.isVoiceMessage
       };
 
-      await chatHistoryService.saveMessage(currentSession.id, chatMessage);
+      await chatSessionService.saveMessage(currentSession.id, chatMessage);
     } catch (error) {
       console.error('Error saving message to history:', error);
       // Don't throw error to avoid breaking chat flow
