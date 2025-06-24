@@ -241,6 +241,34 @@ export const profileService = {
       console.error('Error fetching profile by ID:', error);
       return null;
     }
+  },
+
+  async searchDoctors(query: string): Promise<Doctor[]> {
+    try {
+      let queryBuilder = supabase
+        .from('doctors')
+        .select(`
+          *,
+          profile:profiles(*)
+        `)
+        .eq('verified', true);
+
+      if (query.trim()) {
+        queryBuilder = queryBuilder.or(`
+          specialties.cs.{${query}},
+          clinic_name.ilike.%${query}%,
+          profile.full_name.ilike.%${query}%
+        `);
+      }
+
+      const { data, error } = await queryBuilder;
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
   }
 };
 
@@ -359,6 +387,29 @@ export const patientDoctorRequestService = {
     }
   },
 
+  async getRequestsForPatient(): Promise<PatientDoctorRequest[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .eq('patient_id', profile.id)
+        .order('requested_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
   async updateRequestStatus(requestId: string, status: 'approved' | 'rejected'): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -399,7 +450,7 @@ export const patientDoctorRequestService = {
 
 // Patient-Doctor Relationship Service
 export const patientDoctorRelationshipService = {
-  async getMyDoctors(): Promise<PatientDoctorRelationship[]> {
+  async getMyDoctors(): Promise<Doctor[]> {
     try {
       const profile = await profileService.getCurrentProfile();
       if (!profile) return [];
@@ -414,7 +465,21 @@ export const patientDoctorRelationshipService = {
         .order('established_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+
+      // Get doctor details for each relationship
+      const doctorIds = data?.map(rel => rel.doctor_id) || [];
+      if (doctorIds.length === 0) return [];
+
+      const { data: doctors, error: doctorsError } = await supabase
+        .from('doctors')
+        .select(`
+          *,
+          profile:profiles(*)
+        `)
+        .in('profile_id', doctorIds);
+
+      if (doctorsError) throw doctorsError;
+      return doctors || [];
     } catch (error) {
       handleAuthError(error);
       return [];
@@ -441,6 +506,21 @@ export const patientDoctorRelationshipService = {
       handleAuthError(error);
       return [];
     }
+  }
+};
+
+// Patient Service (for backward compatibility)
+export const patientService = {
+  async requestDoctor(doctorId: string, message?: string): Promise<PatientDoctorRequest | null> {
+    return patientDoctorRequestService.createRequest(doctorId, message);
+  },
+
+  async getMyDoctors(): Promise<Doctor[]> {
+    return patientDoctorRelationshipService.getMyDoctors();
+  },
+
+  async getPendingRequests(): Promise<PatientDoctorRequest[]> {
+    return patientDoctorRequestService.getRequestsForPatient();
   }
 };
 
