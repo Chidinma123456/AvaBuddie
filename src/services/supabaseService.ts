@@ -446,7 +446,7 @@ export const doctorService = {
         .eq('doctor_id', profile.id);
 
       if (error) throw error;
-      return data?.map(rel => rel.patient).filter(Boolean) || [];
+      return (data as Array<{ patient: Profile }>)?.map(rel => rel.patient).filter(Boolean) || [];
     } catch (error) {
       handleAuthError(error);
       return [];
@@ -481,7 +481,7 @@ export const doctorService = {
     return patientDoctorRequestService.updateRequestStatus(requestId, 'approved');
   },
 
-  async rejectRequest(requestId: string, reason?: string): Promise<boolean> {
+  async rejectRequest(requestId: string, _reason?: string): Promise<boolean> {
     return patientDoctorRequestService.updateRequestStatus(requestId, 'rejected');
   }
 };
