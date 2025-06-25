@@ -475,6 +475,14 @@ export const doctorService = {
       handleAuthError(error);
       return [];
     }
+  },
+
+  async approveRequest(requestId: string): Promise<boolean> {
+    return patientDoctorRequestService.updateRequestStatus(requestId, 'approved');
+  },
+
+  async rejectRequest(requestId: string, reason?: string): Promise<boolean> {
+    return patientDoctorRequestService.updateRequestStatus(requestId, 'rejected');
   }
 };
 
