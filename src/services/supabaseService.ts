@@ -446,7 +446,7 @@ export const doctorService = {
         .eq('doctor_id', profile.id);
 
       if (error) throw error;
-      return (data as Array<{ patient: Profile }>)?.map(rel => rel.patient).filter(Boolean) || [];
+      return (data as unknown as Array<{ patient: Profile }>)?.map(rel => rel.patient).filter(Boolean) || [];
     } catch (error) {
       handleAuthError(error);
       return [];
