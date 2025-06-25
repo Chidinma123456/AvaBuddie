@@ -139,7 +139,7 @@ export default function DoctorSearchModal({ isOpen, onClose }: DoctorSearchModal
                 )}
                 
                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-3">
-                  <span>Languages: {selectedDoctor.languages.join(', ')}</span>
+                  <span>Languages: {(selectedDoctor.languages || []).join(', ')}</span>
                 </div>
                 
                 {selectedDoctor.bio && (
@@ -272,7 +272,7 @@ export default function DoctorSearchModal({ isOpen, onClose }: DoctorSearchModal
                       </div>
                     )}
                     <div className="text-xs text-gray-500">
-                      Languages: {doctor.languages.join(', ')}
+                      Languages: {(doctor.languages || []).join(', ')}
                     </div>
                   </div>
                 </div>

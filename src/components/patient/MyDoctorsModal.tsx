@@ -263,7 +263,7 @@ export default function MyDoctorsModal({ isOpen, onClose }: MyDoctorsModalProps)
                           )}
                           
                           <div className="flex items-center space-x-2 text-sm text-gray-600 mb-3">
-                            <span>Languages: {doctor.languages.join(', ')}</span>
+                            <span>Languages: {(doctor.languages || []).join(', ')}</span>
                           </div>
                           
                           {doctor.bio && (
@@ -361,7 +361,7 @@ export default function MyDoctorsModal({ isOpen, onClose }: MyDoctorsModalProps)
                               </div>
                             )}
                             <div className="text-xs text-gray-500">
-                              Languages: {doctor.languages.join(', ')}
+                              Languages: {(doctor.languages || []).join(', ')}
                             </div>
                           </div>
                         </div>
