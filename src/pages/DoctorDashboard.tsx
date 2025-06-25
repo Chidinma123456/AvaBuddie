@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { doctorService, notificationService, type Profile, type PatientDoctorRequest, type Notification } from '../services/supabaseService';
 import AddPatientModal from '../components/doctor/AddPatientModal';
 import ScheduleAppointmentModal from '../components/doctor/ScheduleAppointmentModal';
@@ -742,12 +742,12 @@ export default function DoctorDashboard() {
       `}>
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-            <div className="flex items-center space-x-3">
+            <Link to="/" className="flex items-center space-x-3">
               <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg">
                 <Heart className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">AvaBuddie</span>
-            </div>
+            </Link>
             <button 
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden text-gray-500 hover:text-gray-700"
