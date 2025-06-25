@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, FileText, Clock, AlertTriangle, User, CheckCircle, Eye, MessageCircle } from 'lucide-react';
+import { X, FileText, Clock, AlertTriangle, User, CheckCircle, Eye, MessageCircle, Send, ArrowLeft } from 'lucide-react';
 
 interface PendingCase {
   id: string;
@@ -90,6 +90,10 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
   const [selectedCase, setSelectedCase] = useState<PendingCase | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterPriority, setFilterPriority] = useState<string>('All');
+  const [actionType, setActionType] = useState<'approve' | 'request_info' | 'escalate' | null>(null);
+  const [responseMessage, setResponseMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   if (!isOpen) return null;
 
@@ -128,10 +132,36 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
     }
   };
 
-  const handleCaseAction = (caseId: string, action: 'approve' | 'request_more_info' | 'escalate') => {
-    // Handle case actions
-    console.log(`Action ${action} for case ${caseId}`);
-    // In a real app, this would make an API call
+  const handleCaseAction = async (action: 'approve' | 'request_info' | 'escalate') => {
+    setActionType(action);
+    setResponseMessage('');
+  };
+
+  const handleSubmitAction = async () => {
+    if (!selectedCase || !actionType) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      // Simulate API call based on action type
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      console.log(`${actionType} action completed for case ${selectedCase.id}:`, responseMessage);
+      
+      setIsSubmitted(true);
+      setTimeout(() => {
+        setIsSubmitted(false);
+        setActionType(null);
+        setResponseMessage('');
+        setSelectedCase(null);
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error processing case action:', error);
+      alert('Failed to process action. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -139,6 +169,134 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
     return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Action Modal
+  if (actionType && selectedCase) {
+    const actionConfig = {
+      approve: {
+        title: 'Approve & Close Case',
+        description: 'Mark this case as reviewed and approved. The case will be closed.',
+        color: 'green',
+        icon: CheckCircle,
+        placeholder: 'Add any final notes or recommendations...'
+      },
+      request_info: {
+        title: 'Request More Information',
+        description: 'Ask the patient or healthcare worker for additional details.',
+        color: 'blue',
+        icon: MessageCircle,
+        placeholder: 'What additional information do you need? Be specific about what the patient should provide...'
+      },
+      escalate: {
+        title: 'Escalate Case',
+        description: 'Forward this case to a senior physician or specialist for review.',
+        color: 'orange',
+        icon: AlertTriangle,
+        placeholder: 'Explain why this case needs escalation and any specific concerns...'
+      }
+    };
+
+    const config = actionConfig[actionType];
+    const Icon = config.icon;
+
+    if (isSubmitted) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl text-center">
+            <div className={`w-16 h-16 bg-${config.color}-100 rounded-full flex items-center justify-center mx-auto mb-4`}>
+              <CheckCircle className={`w-8 h-8 text-${config.color}-600`} />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Action Completed!</h2>
+            <p className="text-gray-600">
+              {actionType === 'approve' && 'Case has been approved and closed.'}
+              {actionType === 'request_info' && 'Information request sent to patient.'}
+              {actionType === 'escalate' && 'Case has been escalated successfully.'}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-2xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => setActionType(null)}
+              className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back to Case</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="text-center mb-6">
+            <div className={`w-16 h-16 bg-${config.color}-100 rounded-full flex items-center justify-center mx-auto mb-4`}>
+              <Icon className={`w-8 h-8 text-${config.color}-600`} />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{config.title}</h2>
+            <p className="text-gray-600">{config.description}</p>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Case: {selectedCase.patientName}</h3>
+            <p className="text-gray-700 text-sm">{selectedCase.symptoms}</p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {actionType === 'approve' ? 'Final Notes (Optional)' : 
+                 actionType === 'request_info' ? 'Information Request *' : 
+                 'Escalation Reason *'}
+              </label>
+              <textarea
+                value={responseMessage}
+                onChange={(e) => setResponseMessage(e.target.value)}
+                placeholder={config.placeholder}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={4}
+                required={actionType !== 'approve'}
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setActionType(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitAction}
+                disabled={isSubmitting || (actionType !== 'approve' && !responseMessage.trim())}
+                className={`flex-1 bg-${config.color}-600 hover:bg-${config.color}-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Submit</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Case Details View
   if (selectedCase) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -236,21 +394,21 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
             {/* Action Buttons */}
             <div className="flex space-x-3 pt-6 border-t border-gray-200">
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'approve')}
+                onClick={() => handleCaseAction('approve')}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <CheckCircle className="w-4 h-4" />
                 <span>Approve & Close Case</span>
               </button>
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'request_more_info')}
+                onClick={() => handleCaseAction('request_info')}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>Request More Info</span>
               </button>
               <button
-                onClick={() => handleCaseAction(selectedCase.id, 'escalate')}
+                onClick={() => handleCaseAction('escalate')}
                 className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <AlertTriangle className="w-4 h-4" />
@@ -263,6 +421,7 @@ export default function ReviewCasesModal({ isOpen, onClose }: ReviewCasesModalPr
     );
   }
 
+  // Main Cases List View
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-2xl p-6 w-full max-w-6xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">

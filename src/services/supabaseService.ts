@@ -1,147 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
-import type { User as SupabaseUser, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Better error handling for missing environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables:', {
-    VITE_SUPABASE_URL: supabaseUrl ? 'Set' : 'Missing',
-    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'Set' : 'Missing'
-  });
-  
-  // Don't throw error in production, just log it
-  if (import.meta.env.MODE === 'development') {
-    throw new Error('Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
-  }
+  throw new Error('Missing Supabase environment variables');
 }
 
-if (supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
-  console.error('Placeholder Supabase credentials detected. Please update with actual values.');
-  
-  if (import.meta.env.MODE === 'development') {
-    throw new Error('Please replace the placeholder Supabase credentials in your .env file with your actual project credentials from the Supabase dashboard.');
-  }
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Validate URL format only if URL is provided
-if (supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL') {
-  try {
-    new URL(supabaseUrl);
-  } catch {
-    console.error('Invalid Supabase URL format:', supabaseUrl);
-    if (import.meta.env.MODE === 'development') {
-      throw new Error('Invalid Supabase URL format. Please check your VITE_SUPABASE_URL in the .env file.');
-    }
-  }
-}
+// Auth error callback
+let authErrorCallback: (() => void) | null = null;
 
-// Create a fallback client if environment variables are missing (for production)
-let supabase: any;
-
-if (supabaseUrl && supabaseAnonKey && 
-    supabaseUrl !== 'YOUR_SUPABASE_PROJECT_URL' && 
-    supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY') {
-  
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-      flowType: 'pkce'
-    },
-    db: {
-      schema: 'public'
-    },
-    global: {
-      headers: {
-        'x-client-info': 'buddydoc-web'
-      },
-      fetch: (url, options = {}) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-        
-        return fetch(url, {
-          ...options,
-          signal: controller.signal
-        }).then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        }).catch(error => {
-          clearTimeout(timeoutId);
-          console.error('Supabase fetch error:', error);
-          
-          if (error.name === 'AbortError') {
-            throw new Error('Connection timeout: Unable to reach Supabase server');
-          }
-          
-          if (error.message.includes('Failed to fetch')) {
-            throw new Error('Network error: Please check your internet connection and Supabase URL');
-          }
-          
-          throw new Error(`Failed to connect to Supabase: ${error.message}`);
-        });
-      }
-    }
-  });
-} else {
-  // Create a mock client for when environment variables are missing
-  console.warn('Supabase client not initialized due to missing environment variables. Using mock client.');
-  
-  supabase = {
-    auth: {
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signInWithPassword: () => Promise.reject(new Error('Supabase not configured')),
-      signUp: () => Promise.reject(new Error('Supabase not configured')),
-      signOut: () => Promise.resolve({ error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
-    },
-    from: () => ({
-      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
-      insert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-      update: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-      delete: () => Promise.resolve({ error: { message: 'Supabase not configured' } })
-    }),
-    storage: {
-      from: () => ({
-        upload: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
-        getPublicUrl: () => ({ data: { publicUrl: '' } })
-      })
-    },
-    channel: () => ({
-      on: () => ({ subscribe: () => {} })
-    }),
-    rpc: () => Promise.resolve({ error: { message: 'Supabase not configured' } })
-  };
-}
-
-export { supabase };
-
-// Test connection on initialization only if properly configured
-const testConnection = async () => {
-  if (!supabaseUrl || !supabaseAnonKey || 
-      supabaseUrl === 'YOUR_SUPABASE_PROJECT_URL' || 
-      supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
-    console.log('Skipping Supabase connection test - not configured');
-    return;
-  }
-  
-  try {
-    const { error } = await supabase.from('profiles').select('count').limit(1);
-    if (error && error.code !== 'PGRST116') {
-      console.warn('Supabase connection test failed:', error.message);
-    } else {
-      console.log('Supabase connection established successfully');
-    }
-  } catch (error) {
-    console.warn('Supabase connection test failed:', error);
-  }
+export const setAuthErrorCallback = (callback: () => void) => {
+  authErrorCallback = callback;
 };
 
-// Run connection test after a short delay to allow for initialization
-setTimeout(testConnection, 1000);
+// Enhanced error handling for auth operations
+const handleAuthError = (error: any) => {
+  console.error('Auth error:', error);
+  if (error?.message?.includes('JWT') || error?.message?.includes('session')) {
+    authErrorCallback?.();
+  }
+  throw error;
+};
 
 // Types
 export interface Profile {
@@ -162,8 +45,8 @@ export interface Profile {
   insurance_provider?: string;
   insurance_number?: string;
   avatar_url?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Doctor {
@@ -171,14 +54,16 @@ export interface Doctor {
   profile_id: string;
   license_number: string;
   specialties: string[];
-  years_experience: number;
+  years_experience?: number;
   clinic_name?: string;
   clinic_address?: string;
   consultation_fee?: number;
   available_hours?: any;
-  languages: string[];
+  languages?: string[];
   bio?: string;
-  verified: boolean;
+  verified?: boolean;
+  created_at?: string;
+  updated_at?: string;
   profile?: Profile;
 }
 
@@ -231,6 +116,9 @@ export interface ConsultationReport {
   sent_at: string;
   reviewed_at?: string;
   responded_at?: string;
+  patient?: Profile;
+  doctor?: Profile;
+  consultation?: AIConsultation;
 }
 
 export interface Notification {
@@ -244,7 +132,6 @@ export interface Notification {
   created_at: string;
 }
 
-// Chat History Types
 export interface ChatMessage {
   id: string;
   type: 'user' | 'ai';
@@ -265,74 +152,7 @@ export interface ChatSession {
   updated_at: string;
 }
 
-// Storage Services
-export const storageService = {
-  async uploadImage(file: File, sessionId?: string): Promise<string> {
-    try {
-      const profile = await profileService.getCurrentProfile();
-      if (!profile) {
-        throw new Error('User not authenticated');
-      }
-
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${profile.id}/${sessionId || 'general'}/${Date.now()}.${fileExt}`;
-
-      console.log('Uploading image to Supabase Storage:', fileName);
-
-      // Upload to Supabase Storage
-      const { error } = await supabase.storage
-        .from('chat_images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) {
-        console.error('Storage upload error:', error);
-        throw new Error(`Failed to upload image: ${error.message}`);
-      }
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('chat_images')
-        .getPublicUrl(fileName);
-
-      if (!urlData?.publicUrl) {
-        throw new Error('Failed to get public URL for uploaded image');
-      }
-
-      console.log('Image uploaded successfully:', urlData.publicUrl);
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw error;
-    }
-  },
-
-  async deleteImage(imageUrl: string): Promise<void> {
-    try {
-      // Extract file path from URL
-      const url = new URL(imageUrl);
-      const pathParts = url.pathname.split('/');
-      const fileName = pathParts.slice(-3).join('/'); // Get last 3 parts: userId/sessionId/filename
-
-      const { error } = await supabase.storage
-        .from('chat_images')
-        .remove([fileName]);
-
-      if (error) {
-        console.error('Error deleting image:', error);
-        // Don't throw error for deletion failures to avoid breaking the app
-      }
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      // Don't throw error for deletion failures
-    }
-  }
-};
-
-// Profile Services
+// Profile Service
 export const profileService = {
   async getCurrentProfile(): Promise<Profile | null> {
     try {
@@ -347,53 +167,149 @@ export const profileService = {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // No profile found
+          // No profile found, this is expected for new users
           return null;
         }
-        console.error('Error fetching profile:', error);
-        return null;
+        throw error;
       }
 
       return data;
     } catch (error) {
-      console.error('Error in getCurrentProfile:', error);
+      console.error('Error fetching profile:', error);
       return null;
     }
   },
 
-  async createProfileFromAuth(user: SupabaseUser): Promise<Profile | null> {
+  async createProfileFromAuth(user: User, userData: { name: string; role: string }): Promise<Profile> {
     try {
       const profileData = {
         user_id: user.id,
         email: user.email!,
-        full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-        role: user.user_metadata?.role || 'patient',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        full_name: userData.name,
+        role: userData.role
       };
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert(profileData)
-        .select()
-        .single();
+      console.log('Creating profile with data:', profileData);
 
-      if (error) {
-        console.error('Error creating profile manually:', error);
-        return null;
+      // First, check if profile already exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing profile:', checkError);
+        throw checkError;
       }
 
-      return data;
+      if (existingProfile) {
+        console.log('Profile already exists, returning existing profile');
+        return existingProfile;
+      }
+
+      // Try to create the profile with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .insert([profileData])
+            .select()
+            .single();
+
+          if (error) {
+            console.error(`Profile creation error (attempt ${retryCount + 1}):`, error);
+            
+            // If it's a duplicate key error, try to fetch the existing profile
+            if (error.code === '23505' || error.message?.includes('duplicate')) {
+              const { data: existingData, error: fetchError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+              
+              if (existingData && !fetchError) {
+                console.log('Found existing profile after duplicate error');
+                return existingData;
+              }
+            }
+            
+            // If it's a permission error, wait and retry
+            if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.log(`Retrying profile creation in ${retryCount * 1000}ms...`);
+                await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+                continue;
+              }
+            }
+            
+            throw error;
+          }
+
+          console.log('Profile created successfully:', data);
+          return data;
+        } catch (retryError) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            throw retryError;
+          }
+          console.log(`Retrying profile creation (${retryCount}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+        }
+      }
+
+      throw new Error('Failed to create profile after maximum retries');
     } catch (error) {
-      console.error('Error in createProfileFromAuth:', error);
-      return null;
+      console.error('Error creating profile:', error);
+      throw error;
+    }
+  },
+
+  async ensureProfileExists(user: User, userData: { name: string; role: string }): Promise<Profile> {
+    try {
+      // First try to get existing profile with a longer timeout
+      let profile = await Promise.race([
+        this.getCurrentProfile(),
+        new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        )
+      ]);
+      
+      if (profile) {
+        console.log('Found existing profile');
+        return profile;
+      }
+
+      // If no profile exists, wait a bit for the trigger to potentially create it
+      console.log('No profile found, waiting for potential trigger creation...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Try again to get the profile
+      profile = await this.getCurrentProfile();
+      if (profile) {
+        console.log('Profile found after waiting for trigger');
+        return profile;
+      }
+
+      // If still no profile exists, create one manually
+      console.log('No profile found after trigger wait, creating manually...');
+      profile = await this.createProfileFromAuth(user, userData);
+      
+      return profile;
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error);
+      throw error;
     }
   },
 
   async updateProfile(updates: Partial<Profile>): Promise<Profile | null> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error('No authenticated user');
 
       const { data, error } = await supabase
         .from('profiles')
@@ -405,416 +321,639 @@ export const profileService = {
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
+      handleAuthError(error);
+      return null;
     }
   },
 
-  async searchDoctors(query: string = ''): Promise<Doctor[]> {
+  async getProfileById(id: string): Promise<Profile | null> {
     try {
-      console.log('Searching doctors with query:', query);
-      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching profile by ID:', error);
+      return null;
+    }
+  },
+
+  async searchDoctors(query: string): Promise<Doctor[]> {
+    try {
       let queryBuilder = supabase
         .from('doctors')
         .select(`
           *,
-          profile:profiles!doctors_profile_id_fkey(*)
+          profile:profiles(*)
         `)
-        .eq('verified', true)
-        .order('years_experience', { ascending: false });
+        .eq('verified', true);
 
-      // If no query provided, get all doctors
-      if (!query.trim()) {
-        queryBuilder = queryBuilder.limit(50); // Reasonable limit for all doctors
-      } else {
-        queryBuilder = queryBuilder.limit(20); // Smaller limit for search results
+      if (query.trim()) {
+        queryBuilder = queryBuilder.or(`
+          specialties.cs.{${query}},
+          clinic_name.ilike.%${query}%,
+          profile.full_name.ilike.%${query}%
+        `);
       }
 
       const { data, error } = await queryBuilder;
 
-      if (error) {
-        console.error('Error in searchDoctors query:', error);
-        throw error;
-      }
-
-      console.log('Raw doctors data from database:', data);
-
-      // Filter results based on query if provided
-      let filteredData = data || [];
-      
-      if (query.trim()) {
-        const searchText = query.toLowerCase();
-        filteredData = data?.filter((doctor: Doctor) => {
-          const fullName = doctor.profile?.full_name?.toLowerCase() || '';
-          const specialties = doctor.specialties?.join(' ').toLowerCase() || '';
-          const clinicName = doctor.clinic_name?.toLowerCase() || '';
-          
-          return fullName.includes(searchText) || 
-                 specialties.includes(searchText) || 
-                 clinicName.includes(searchText);
-        }) || [];
-      }
-
-      console.log('Filtered doctors data:', filteredData);
-      return filteredData;
+      if (error) throw error;
+      return data || [];
     } catch (error) {
-      console.error('Error searching doctors:', error);
+      handleAuthError(error);
       return [];
     }
   }
 };
 
-// Doctor Services
+// Doctor Service
 export const doctorService = {
-  async createDoctorProfile(doctorData: Omit<Doctor, 'id' | 'profile_id' | 'created_at' | 'updated_at'>): Promise<Doctor> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'doctor') {
-      throw new Error('Only doctors can create doctor profiles');
+  async getAllDoctors(): Promise<Doctor[]> {
+    try {
+      const { data, error } = await supabase
+        .from('doctors')
+        .select(`
+          *,
+          profile:profiles(*)
+        `)
+        .eq('verified', true);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
     }
-
-    const { data, error } = await supabase
-      .from('doctors')
-      .insert({
-        ...doctorData,
-        profile_id: profile.id
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
   },
 
-  async updateDoctorProfile(updates: Partial<Doctor>): Promise<Doctor | null> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'doctor') {
-      throw new Error('Only doctors can update doctor profiles');
-    }
+  async getDoctorByProfileId(profileId: string): Promise<Doctor | null> {
+    try {
+      const { data, error } = await supabase
+        .from('doctors')
+        .select(`
+          *,
+          profile:profiles(*)
+        `)
+        .eq('profile_id', profileId)
+        .single();
 
-    const { data, error } = await supabase
-      .from('doctors')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('profile_id', profile.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async getDoctorProfile(): Promise<Doctor | null> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'doctor') return null;
-
-    const { data, error } = await supabase
-      .from('doctors')
-      .select('*')
-      .eq('profile_id', profile.id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching doctor profile:', error);
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching doctor:', error);
       return null;
     }
+  },
 
-    return data;
+  async updateDoctor(updates: Partial<Doctor>): Promise<Doctor | null> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) throw new Error('No profile found');
+
+      const { data, error } = await supabase
+        .from('doctors')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('profile_id', profile.id)
+        .select(`
+          *,
+          profile:profiles(*)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
   },
 
   async getPatients(): Promise<Profile[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'doctor') return [];
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
 
-    const { data, error } = await supabase
-      .from('patient_doctor_relationships')
-      .select(`
-        patient:profiles!patient_doctor_relationships_patient_id_fkey(*)
-      `)
-      .eq('doctor_id', profile.id);
+      const { data, error } = await supabase
+        .from('patient_doctor_relationships')
+        .select(`
+          patient:profiles!patient_doctor_relationships_patient_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id);
 
-    if (error) throw error;
-    
-    // Fix the type conversion issue by properly extracting and typing the patient data
-    const patients: Profile[] = [];
-    if (data) {
-      for (const item of data) {
-        if (item.patient && typeof item.patient === 'object' && !Array.isArray(item.patient)) {
-          patients.push(item.patient as Profile);
-        }
-      }
+      if (error) throw error;
+      return data?.map(rel => rel.patient).filter(Boolean) || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
     }
-    
-    return patients;
   },
 
   async getPendingRequests(): Promise<PatientDoctorRequest[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'doctor') return [];
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
 
-    const { data, error } = await supabase
-      .from('patient_doctor_requests')
-      .select(`
-        *,
-        patient:profiles!patient_doctor_requests_patient_id_fkey(*)
-      `)
-      .eq('doctor_id', profile.id)
-      .eq('status', 'pending')
-      .order('requested_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id)
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
-  },
-
-  async approveRequest(requestId: string): Promise<void> {
-    const { error } = await supabase.rpc('approve_doctor_request', {
-      request_id: requestId
-    });
-
-    if (error) throw error;
-  },
-
-  async rejectRequest(requestId: string, reason?: string): Promise<void> {
-    const { error } = await supabase.rpc('reject_doctor_request', {
-      request_id: requestId,
-      rejection_reason: reason
-    });
-
-    if (error) throw error;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
   }
 };
 
-// Patient Services
-export const patientService = {
-  async requestDoctor(doctorId: string, message?: string): Promise<PatientDoctorRequest> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') {
-      throw new Error('Only patients can request doctors');
+// Patient-Doctor Request Service
+export const patientDoctorRequestService = {
+  async createRequest(doctorId: string, message?: string): Promise<PatientDoctorRequest | null> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) throw new Error('No profile found');
+
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .insert([{
+          patient_id: profile.id,
+          doctor_id: doctorId,
+          message: message || ''
+        }])
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
     }
-
-    const { data, error } = await supabase
-      .from('patient_doctor_requests')
-      .insert({
-        patient_id: profile.id,
-        doctor_id: doctorId,
-        message
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Create notification for doctor (don't await to avoid blocking)
-    Promise.resolve(supabase
-      .from('notifications')
-      .insert({
-        user_id: doctorId,
-        type: 'doctor_request',
-        title: 'New Patient Request',
-        message: `${profile.full_name} has requested you as their doctor.`,
-        data: { request_id: data.id, patient_id: profile.id }
-      }))
-      .then(() => console.log('Notification sent'))
-      .catch((err: any) => console.error('Failed to send notification:', err));
-
-    return data;
   },
 
-  async getMyDoctors(): Promise<Doctor[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') return [];
-
+  async getRequestsForDoctor(): Promise<PatientDoctorRequest[]> {
     try {
-      console.log('Getting my doctors for patient:', profile.id);
-      
-      // First get the doctor profile IDs from relationships
-      const { data: relationships, error: relationshipError } = await supabase
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id)
+        .order('requested_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
+  async getRequestsForPatient(): Promise<PatientDoctorRequest[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('patient_doctor_requests')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_requests_patient_id_fkey(*),
+          doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
+        `)
+        .eq('patient_id', profile.id)
+        .order('requested_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
+  async updateRequestStatus(requestId: string, status: 'approved' | 'rejected'): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('patient_doctor_requests')
+        .update({ 
+          status, 
+          responded_at: new Date().toISOString() 
+        })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      // If approved, create a patient-doctor relationship
+      if (status === 'approved') {
+        const { data: request } = await supabase
+          .from('patient_doctor_requests')
+          .select('patient_id, doctor_id')
+          .eq('id', requestId)
+          .single();
+
+        if (request) {
+          await supabase
+            .from('patient_doctor_relationships')
+            .insert([{
+              patient_id: request.patient_id,
+              doctor_id: request.doctor_id
+            }]);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
+    }
+  }
+};
+
+// Patient-Doctor Relationship Service
+export const patientDoctorRelationshipService = {
+  async getMyDoctors(): Promise<Doctor[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
         .from('patient_doctor_relationships')
-        .select('doctor_id')
-        .eq('patient_id', profile.id);
+        .select(`
+          *,
+          doctor:profiles!patient_doctor_relationships_doctor_id_fkey(*)
+        `)
+        .eq('patient_id', profile.id)
+        .order('established_at', { ascending: false });
 
-      if (relationshipError) {
-        console.error('Error fetching relationships:', relationshipError);
-        throw relationshipError;
-      }
+      if (error) throw error;
 
-      if (!relationships || relationships.length === 0) {
-        console.log('No doctor relationships found');
-        return [];
-      }
+      // Get doctor details for each relationship
+      const doctorIds = data?.map(rel => rel.doctor_id) || [];
+      if (doctorIds.length === 0) return [];
 
-      const doctorProfileIds = relationships.map((rel: { doctor_id: string }) => rel.doctor_id);
-      console.log('Doctor profile IDs:', doctorProfileIds);
-
-      // Now get the doctor records using the profile IDs
       const { data: doctors, error: doctorsError } = await supabase
         .from('doctors')
         .select(`
           *,
-          profile:profiles!doctors_profile_id_fkey(*)
+          profile:profiles(*)
         `)
-        .in('profile_id', doctorProfileIds);
+        .in('profile_id', doctorIds);
 
-      if (doctorsError) {
-        console.error('Error fetching doctors:', doctorsError);
-        throw doctorsError;
-      }
-
-      console.log('Final doctors data:', doctors);
+      if (doctorsError) throw doctorsError;
       return doctors || [];
     } catch (error) {
-      console.error('Error fetching my doctors:', error);
+      handleAuthError(error);
       return [];
     }
   },
 
-  async getPendingRequests(): Promise<PatientDoctorRequest[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') return [];
+  async getMyPatients(): Promise<PatientDoctorRelationship[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
 
-    const { data, error } = await supabase
-      .from('patient_doctor_requests')
-      .select(`
-        *,
-        doctor:profiles!patient_doctor_requests_doctor_id_fkey(*)
-      `)
-      .eq('patient_id', profile.id)
-      .order('requested_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('patient_doctor_relationships')
+        .select(`
+          *,
+          patient:profiles!patient_doctor_relationships_patient_id_fkey(*)
+        `)
+        .eq('doctor_id', profile.id)
+        .order('established_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
-  },
-
-  async sendReportToDoctor(consultationId: string, doctorId: string, message?: string): Promise<ConsultationReport> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') {
-      throw new Error('Only patients can send reports');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
     }
-
-    // Get consultation data
-    const { data: consultation, error: consultationError } = await supabase
-      .from('ai_consultations')
-      .select('*')
-      .eq('id', consultationId)
-      .eq('patient_id', profile.id)
-      .single();
-
-    if (consultationError) throw consultationError;
-
-    const { data, error } = await supabase
-      .from('consultation_reports')
-      .insert({
-        consultation_id: consultationId,
-        patient_id: profile.id,
-        doctor_id: doctorId,
-        report_data: consultation,
-        patient_message: message
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Create notification for doctor (don't await)
-    Promise.resolve(supabase
-      .from('notifications')
-      .insert({
-        user_id: doctorId,
-        type: 'report_received',
-        title: 'New Consultation Report',
-        message: `${profile.full_name} has sent you a consultation report.`,
-        data: { report_id: data.id, patient_id: profile.id }
-      }))
-      .then(() => console.log('Notification sent'))
-      .catch((err: any) => console.error('Failed to send notification:', err));
-
-    return data;
   }
 };
 
-// Chat History Services
-export const chatHistoryService = {
-  async getCurrentSession(): Promise<ChatSession | null> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') return null;
+// Patient Service (for backward compatibility)
+export const patientService = {
+  async requestDoctor(doctorId: string, message?: string): Promise<PatientDoctorRequest | null> {
+    return patientDoctorRequestService.createRequest(doctorId, message);
+  },
 
+  async getMyDoctors(): Promise<Doctor[]> {
+    return patientDoctorRelationshipService.getMyDoctors();
+  },
+
+  async getPendingRequests(): Promise<PatientDoctorRequest[]> {
+    return patientDoctorRequestService.getRequestsForPatient();
+  }
+};
+
+// AI Consultation Service
+export const aiConsultationService = {
+  async createConsultation(sessionId: string): Promise<AIConsultation | null> {
     try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) throw new Error('No profile found');
+
       const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('patient_id', profile.id)
-        .order('last_message_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .from('ai_consultations')
+        .insert([{
+          patient_id: profile.id,
+          session_id: sessionId,
+          messages: []
+        }])
+        .select()
+        .single();
 
-      if (error) {
-        console.error('Error fetching current session:', error);
-        return null;
-      }
-
+      if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Error in getCurrentSession:', error);
+      handleAuthError(error);
       return null;
     }
   },
 
-  async createNewSession(sessionName?: string): Promise<ChatSession> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') {
-      throw new Error('Only patients can create chat sessions');
-    }
-
-    const defaultName = `Chat ${new Date().toLocaleDateString()}`;
-    const { data, error } = await supabase
-      .from('chat_sessions')
-      .insert({
-        patient_id: profile.id,
-        session_name: sessionName || defaultName,
-        messages: [],
-        last_message_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async saveMessage(sessionId: string, message: ChatMessage): Promise<void> {
+  async updateConsultation(id: string, updates: Partial<AIConsultation>): Promise<AIConsultation | null> {
     try {
-      // Get current session
-      const { data: session, error: fetchError } = await supabase
-        .from('chat_sessions')
-        .select('messages')
-        .eq('id', sessionId)
+      const { data, error } = await supabase
+        .from('ai_consultations')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
         .single();
 
-      if (fetchError) throw fetchError;
-
-      // Add new message to existing messages
-      const updatedMessages = [...(session.messages || []), message];
-
-      // Update session with new message
-      const { error: updateError } = await supabase
-        .from('chat_sessions')
-        .update({
-          messages: updatedMessages,
-          last_message_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
-
-      if (updateError) throw updateError;
+      if (error) throw error;
+      return data;
     } catch (error) {
-      console.error('Error saving message:', error);
-      throw error;
+      handleAuthError(error);
+      return null;
     }
   },
 
-  async getAllSessions(): Promise<ChatSession[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') return [];
-
+  async getConsultation(id: string): Promise<AIConsultation | null> {
     try {
+      const { data, error } = await supabase
+        .from('ai_consultations')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async getMyConsultations(): Promise<AIConsultation[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('ai_consultations')
+        .select('*')
+        .eq('patient_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  }
+};
+
+// Consultation Report Service
+export const consultationReportService = {
+  async createReport(consultationId: string, doctorId: string, reportData: any, message?: string): Promise<ConsultationReport | null> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) throw new Error('No profile found');
+
+      const { data, error } = await supabase
+        .from('consultation_reports')
+        .insert([{
+          consultation_id: consultationId,
+          patient_id: profile.id,
+          doctor_id: doctorId,
+          report_data: reportData,
+          patient_message: message
+        }])
+        .select(`
+          *,
+          patient:profiles!consultation_reports_patient_id_fkey(*),
+          doctor:profiles!consultation_reports_doctor_id_fkey(*),
+          consultation:ai_consultations(*)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async getReportsForDoctor(): Promise<ConsultationReport[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('consultation_reports')
+        .select(`
+          *,
+          patient:profiles!consultation_reports_patient_id_fkey(*),
+          doctor:profiles!consultation_reports_doctor_id_fkey(*),
+          consultation:ai_consultations(*)
+        `)
+        .eq('doctor_id', profile.id)
+        .order('sent_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
+  async updateReportStatus(reportId: string, status: 'reviewed' | 'responded', doctorResponse?: string): Promise<boolean> {
+    try {
+      const updates: any = { 
+        status,
+        [`${status}_at`]: new Date().toISOString()
+      };
+
+      if (doctorResponse) {
+        updates.doctor_response = doctorResponse;
+      }
+
+      const { error } = await supabase
+        .from('consultation_reports')
+        .update(updates)
+        .eq('id', reportId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
+    }
+  }
+};
+
+// Notification Service
+export const notificationService = {
+  async getMyNotifications(): Promise<Notification[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      handleAuthError(error);
+      return [];
+    }
+  },
+
+  // Alias for backward compatibility
+  async getNotifications(): Promise<Notification[]> {
+    return this.getMyNotifications();
+  },
+
+  async markAsRead(notificationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
+    }
+  },
+
+  async markAllAsRead(): Promise<boolean> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return false;
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', profile.id)
+        .eq('read', false);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
+    }
+  }
+};
+
+// Chat Session Service
+export const chatSessionService = {
+  async createSession(sessionName: string = 'New Chat'): Promise<ChatSession | null> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) throw new Error('No profile found');
+
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .insert([{
+          patient_id: profile.id,
+          session_name: sessionName,
+          messages: []
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async getSession(id: string): Promise<ChatSession | null> {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async updateSession(id: string, updates: Partial<ChatSession>): Promise<ChatSession | null> {
+    try {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .update({ 
+          ...updates, 
+          updated_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      handleAuthError(error);
+      return null;
+    }
+  },
+
+  async getMySessions(): Promise<ChatSession[]> {
+    try {
+      const profile = await profileService.getCurrentProfile();
+      if (!profile) return [];
+
       const { data, error } = await supabase
         .from('chat_sessions')
         .select('*')
@@ -824,168 +963,68 @@ export const chatHistoryService = {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching all sessions:', error);
+      handleAuthError(error);
       return [];
     }
   },
 
-  async getSession(sessionId: string): Promise<ChatSession | null> {
+  async deleteSession(id: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('chat_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single();
+        .delete()
+        .eq('id', id);
 
       if (error) throw error;
-      return data;
+      return true;
     } catch (error) {
-      console.error('Error fetching session:', error);
-      return null;
+      handleAuthError(error);
+      return false;
     }
   },
 
-  async deleteSession(sessionId: string): Promise<void> {
-    const { error } = await supabase
-      .from('chat_sessions')
-      .delete()
-      .eq('id', sessionId);
+  async saveMessage(sessionId: string, message: ChatMessage): Promise<boolean> {
+    try {
+      // Get current session
+      const session = await this.getSession(sessionId);
+      if (!session) throw new Error('Session not found');
 
-    if (error) throw error;
-  },
+      // Add new message to messages array
+      const updatedMessages = [...session.messages, message];
 
-  async updateSessionName(sessionId: string, newName: string): Promise<void> {
-    const { error } = await supabase
-      .from('chat_sessions')
-      .update({ 
-        session_name: newName,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
+      // Update session with new messages
+      const { error } = await supabase
+        .from('chat_sessions')
+        .update({ 
+          messages: updatedMessages,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
 
-    if (error) throw error;
-  }
-};
-
-// AI Consultation Services
-export const consultationService = {
-  async createConsultation(sessionId: string): Promise<AIConsultation> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile || profile.role !== 'patient') {
-      throw new Error('Only patients can create consultations');
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleAuthError(error);
+      return false;
     }
-
-    const { data, error } = await supabase
-      .from('ai_consultations')
-      .insert({
-        patient_id: profile.id,
-        session_id: sessionId,
-        messages: []
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
   },
 
-  async updateConsultation(consultationId: string, updates: Partial<AIConsultation>): Promise<AIConsultation> {
-    const { data, error } = await supabase
-      .from('ai_consultations')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', consultationId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  async createNewSession(): Promise<ChatSession> {
+    const session = await this.createSession('New Chat');
+    if (!session) throw new Error('Failed to create new session');
+    return session;
   },
 
-  async getConsultations(): Promise<AIConsultation[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile) return [];
+  async getAllSessions(): Promise<ChatSession[]> {
+    return this.getMySessions();
+  },
 
-    const { data, error } = await supabase
-      .from('ai_consultations')
-      .select('*')
-      .eq('patient_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(20); // Reduced limit for performance
-
-    if (error) throw error;
-    return data || [];
+  async updateSessionName(sessionId: string, sessionName: string): Promise<boolean> {
+    const result = await this.updateSession(sessionId, { session_name: sessionName });
+    return result !== null;
   }
 };
 
-// Notification Services
-export const notificationService = {
-  async getNotifications(): Promise<Notification[]> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile) return [];
-
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(20); // Reduced limit for performance
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  async markAsRead(notificationId: string): Promise<void> {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', notificationId);
-
-    if (error) throw error;
-  },
-
-  async markAllAsRead(): Promise<void> {
-    const profile = await profileService.getCurrentProfile();
-    if (!profile) return;
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', profile.id)
-      .eq('read', false);
-
-    if (error) throw error;
-  }
-};
-
-// Real-time subscriptions
-export const subscribeToNotifications = (userId: string, callback: (notification: Notification) => void) => {
-  return supabase
-    .channel('notifications')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`
-      },
-      (payload: RealtimePostgresChangesPayload<Notification>) => callback(payload.new as Notification)
-    )
-    .subscribe();
-};
-
-export const subscribeToPatientRequests = (doctorId: string, callback: (request: PatientDoctorRequest) => void) => {
-  return supabase
-    .channel('patient_requests')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'patient_doctor_requests',
-        filter: `doctor_id=eq.${doctorId}`
-      },
-      (payload: RealtimePostgresChangesPayload<PatientDoctorRequest>) => callback(payload.new as PatientDoctorRequest)
-    )
-    .subscribe();
-};
+// Export chatHistoryService as an alias to chatSessionService for backward compatibility
+export const chatHistoryService = chatSessionService;

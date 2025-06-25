@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { doctorService, type Profile, type PatientDoctorRequest } from '../services/supabaseService';
+import { doctorService, notificationService, type Profile, type PatientDoctorRequest, type Notification } from '../services/supabaseService';
 import AddPatientModal from '../components/doctor/AddPatientModal';
 import ScheduleAppointmentModal from '../components/doctor/ScheduleAppointmentModal';
 import ReviewCasesModal from '../components/doctor/ReviewCasesModal';
+import NotificationsModal from '../components/doctor/NotificationsModal';
 import { 
   Users, 
   Calendar, 
@@ -81,7 +82,8 @@ function DoctorHome({
   appointments,
   setAppointments,
   pendingRequests,
-  isLoading
+  isLoading,
+  onRefreshPatients
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
@@ -93,6 +95,7 @@ function DoctorHome({
   setAppointments: (appointments: Appointment[]) => void;
   pendingRequests: PatientDoctorRequest[];
   isLoading: boolean;
+  onRefreshPatients: () => void;
 }) {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -229,7 +232,15 @@ function DoctorHome({
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-4 lg:p-6 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <h3 className="text-lg lg:text-xl font-semibold text-gray-900">My Patients</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg lg:text-xl font-semibold text-gray-900">My Patients</h3>
+              <button
+                onClick={onRefreshPatients}
+                className="lg:hidden text-blue-600 hover:text-blue-700 text-sm font-medium"
+              >
+                Refresh
+              </button>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative">
@@ -257,6 +268,13 @@ function DoctorHome({
                   <option value="Improving">Improving</option>
                 </select>
               </div>
+
+              <button
+                onClick={onRefreshPatients}
+                className="hidden lg:block text-blue-600 hover:text-blue-700 text-sm font-medium px-3 py-2 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                Refresh
+              </button>
             </div>
           </div>
         </div>
@@ -518,9 +536,12 @@ export default function DoctorDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [showEmergencyCall, setShowEmergencyCall] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [pendingRequests, setPendingRequests] = useState<PatientDoctorRequest[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -528,6 +549,7 @@ export default function DoctorDashboard() {
   // Load doctor's patients and requests on component mount
   useEffect(() => {
     loadDoctorData();
+    loadNotifications();
   }, []);
 
   const loadDoctorData = async () => {
@@ -559,6 +581,19 @@ export default function DoctorDashboard() {
     }
   };
 
+  const loadNotifications = async () => {
+    try {
+      const userNotifications = await notificationService.getMyNotifications();
+      setNotifications(userNotifications);
+      
+      // Count unread notifications
+      const unread = userNotifications.filter(n => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -571,6 +606,40 @@ export default function DoctorDashboard() {
       window.open('tel:911', '_self');
       setShowEmergencyCall(false);
     }, 2000);
+  };
+
+  const handleNotificationClick = () => {
+    setShowNotifications(true);
+  };
+
+  const handleMarkNotificationAsRead = async (notificationId: string) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const handlePatientAccepted = () => {
+    // Refresh patient list and notifications when a patient is accepted
+    loadDoctorData();
+    loadNotifications();
   };
 
   const navigationItems = [
@@ -601,6 +670,7 @@ export default function DoctorDashboard() {
             setAppointments={setAppointments}
             pendingRequests={pendingRequests}
             isLoading={isLoading}
+            onRefreshPatients={loadDoctorData}
           />
         );
       case 'schedule':
@@ -624,6 +694,7 @@ export default function DoctorDashboard() {
             setAppointments={setAppointments}
             pendingRequests={pendingRequests}
             isLoading={isLoading}
+            onRefreshPatients={loadDoctorData}
           />
         );
     }
@@ -748,10 +819,15 @@ export default function DoctorDashboard() {
             </div>
 
             <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-gray-700 relative">
+              <button 
+                onClick={handleNotificationClick}
+                className="text-gray-500 hover:text-gray-700 relative transition-colors"
+              >
                 <Bell className="w-6 h-6" />
-                {pendingRequests.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </button>
 
@@ -767,6 +843,16 @@ export default function DoctorDashboard() {
           {renderCurrentView()}
         </main>
       </div>
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+        onMarkAsRead={handleMarkNotificationAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onPatientAccepted={handlePatientAccepted}
+      />
     </div>
   );
 }
