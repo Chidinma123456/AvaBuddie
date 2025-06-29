@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Heart, 
@@ -8,10 +9,14 @@ import {
   MessageCircle,
   Stethoscope,
   Activity,
-  ChevronRight
+  ChevronRight,
+  X,
+  Play
 } from 'lucide-react';
 
 export default function LandingPage() {
+  const [showDemoModal, setShowDemoModal] = useState(false);
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -77,8 +82,12 @@ export default function LandingPage() {
               >
                 Start Your Health Journey
               </Link>
-              <button className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg transition-all hover:bg-gray-50">
-                Watch Demo
+              <button 
+                onClick={() => setShowDemoModal(true)}
+                className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg transition-all hover:bg-gray-50 flex items-center justify-center space-x-2"
+              >
+                <Play className="w-5 h-5" />
+                <span>Watch Demo</span>
               </button>
             </div>
           </div>
@@ -251,6 +260,32 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Demo Video Modal */}
+      {showDemoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+          <div className="relative w-full max-w-4xl mx-4">
+            <button
+              onClick={() => setShowDemoModal(false)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div className="bg-black rounded-lg overflow-hidden shadow-2xl">
+              <div className="relative" style={{ paddingBottom: '56.25%', height: 0 }}>
+                <iframe
+                  src="https://www.youtube.com/embed/YDR4BMGAGLs?autoplay=1&rel=0"
+                  title="AvaBuddie Demo"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute top-0 left-0 w-full h-full"
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
